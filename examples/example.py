@@ -4,7 +4,11 @@ import lorann
 import h5py
 import time
 import numpy as np
-from urllib.request import urlretrieve
+from urllib.request import build_opener, install_opener, urlretrieve
+
+opener = build_opener()
+opener.addheaders = [("User-agent", "Mozilla/5.0")]
+install_opener(opener)
 
 
 def download(source_url, destination_path):
@@ -67,17 +71,21 @@ index = lorann.LorannIndex(
     euclidean=euclidean,
 )
 
-print("Building the index...")
-index.build()
+if os.path.isfile("%s.lorann" % sys.argv[1]):
+    # load index from disk
+    index = lorann.LorannIndex.load("%s.lorann" % sys.argv[1])
+else:
+    print("Building the index...")
+    index.build()
 
-# serialize index to disk
-index.save("%s.lorann" % sys.argv[1])
-
-# index = lorann.LorannIndex.load("%s.lorann" % sys.argv[1])
+    # serialize index to disk
+    index.save("%s.lorann" % sys.argv[1])
 
 print("Querying the index...")
 start_time = time.time()
-results, distances = index.search(test, k, clusters_to_search, points_to_rerank, return_distances=True)
+results, distances = index.search(
+    test, k, clusters_to_search, points_to_rerank, return_distances=True
+)
 # results, distances = index.exact_search(test, k, return_distances=True)
 end_time = time.time()
 
