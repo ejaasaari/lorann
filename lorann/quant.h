@@ -201,7 +201,7 @@ struct SQ4Quantizer : SQQuantizer {
     }
   }
 #endif
-#elif defined(__ARM_NEON)
+#elif (defined(__ARM_NEON) || defined(__ARM_NEON__)) && defined(__ARM_FEATURE_DOTPROD)
   inline void matvec_product_A(const uint8_t *A, const int8_t *x, float *result, const size_t rows,
                                const size_t cols) const {
     for (size_t j = 0; j < cols; ++j) {

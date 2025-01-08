@@ -13,7 +13,7 @@
 
 #include "miniselect/pdqselect.h"
 
-#ifdef __ARM_NEON
+#if defined(__ARM_NEON) || defined(__ARM_NEON__)
 #include <arm_neon.h>
 #else
 #if defined(_MSC_VER) || defined(__MINGW32__)
@@ -140,7 +140,7 @@ static inline float dot_product(const float *x1, const float *x2, size_t length)
 
   return svaddv_f32(svptrue_b32(), sum);
 }
-#elif defined(__ARM_NEON__)
+#elif defined(__ARM_NEON) || defined(__ARM_NEON__)
 static inline float dot_product(const float *x1, const float *x2, size_t length) {
   float32x4_t ab_vec = vdupq_n_f32(0);
   size_t i = 0;
@@ -258,7 +258,7 @@ static inline float dot_product(const float *x1, const float *x2, size_t length)
 
   return svaddv_f32(svptrue_b32(), sum);
 }
-#elif defined(__ARM_NEON__)
+#elif defined(__ARM_NEON) || defined(__ARM_NEON__)
 static inline float squared_euclidean(const float *x1, const float *x2, size_t length) {
   float32x4_t diff_sum = vdupq_n_f32(0);
   size_t i = 0;
