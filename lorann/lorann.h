@@ -1,6 +1,8 @@
 #pragma once
 
+#ifdef _OPENMP
 #include <omp.h>
+#endif
 
 #include <Eigen/Dense>
 #include <cstring>
@@ -172,9 +174,11 @@ class Lorann : public LorannBase {
              int num_threads = -1) override {
     LORANN_ENSURE_POSITIVE(query_n);
 
+#ifdef _OPENMP
     if (num_threads <= 0) {
       num_threads = omp_get_max_threads();
     }
+#endif
 
     Eigen::Map<RowMatrix> train_mat(_data, _n_samples, _dim);
     Eigen::Map<const RowMatrix> query_mat(query_data, query_n, _dim);
@@ -238,7 +242,9 @@ class Lorann : public LorannBase {
       _cluster_norms.resize(_n_clusters);
     }
 
+#ifdef _OPENMP
 #pragma omp parallel for num_threads(num_threads)
+#endif
     for (int i = 0; i < _n_clusters; ++i) {
       if (_cluster_map[i].size() == 0) continue;
 

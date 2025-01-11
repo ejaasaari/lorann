@@ -1,6 +1,8 @@
 #pragma once
 
+#ifdef _OPENMP
 #include <omp.h>
+#endif
 
 #include <Eigen/Dense>
 #include <iostream>
@@ -70,9 +72,11 @@ class KMeans {
           "The number of points should be at least as large as the number of clusters");
     }
 
+#ifdef _OPENMP
     if (num_threads <= 0) {
       num_threads = omp_get_max_threads();
     }
+#endif
 
     Eigen::Map<const RowMatrix> train_mat = Eigen::Map<const RowMatrix>(data, n, m);
 
@@ -206,7 +210,9 @@ class KMeans {
                        const int num_threads) {
     if (_euclidean) {
       Eigen::VectorXf centroid_norms = _centroids.rowwise().squaredNorm();
+#ifdef _OPENMP
 #pragma omp parallel for num_threads(num_threads)
+#endif
       for (int i = 0; i < train_mat.rows(); ++i) {
         Eigen::VectorXf dot_products = train_mat.row(i) * _centroids.transpose();
         float min_dist = std::numeric_limits<float>::max();
@@ -219,7 +225,9 @@ class KMeans {
         }
       }
     } else {
+#ifdef _OPENMP
 #pragma omp parallel for num_threads(num_threads)
+#endif
       for (int i = 0; i < train_mat.rows(); ++i) {
         Eigen::VectorXf dot_products = train_mat.row(i) * _centroids.transpose();
         float max_similarity = std::numeric_limits<float>::min();
