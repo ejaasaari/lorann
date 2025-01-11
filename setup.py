@@ -1,27 +1,36 @@
 #!/usr/bin/python
 
-import os
 import sys
 import codecs
-from pathlib import Path
 
 import setuptools
-from setuptools import Extension
+from setuptools import Extension, find_packages
 from setuptools.command.build_ext import build_ext
 
-parent = Path(__file__).parents[1]
-
-with codecs.open(parent / "README.md", encoding="utf-8") as f:
+with codecs.open("README.md", encoding="utf-8") as f:
     long_description = f.read()
 
-source_files = ["lorannmodule.cc"]
 ext_modules = [
     Extension(
         "lorannlib",
-        source_files,
-        language="c++17",
+        ["python/lorannmodule.cc"],
+        include_dirs=["lorann"],
+        language="c++",
     )
 ]
+
+
+def has_flag(compiler, flagname):
+    import tempfile
+
+    with tempfile.NamedTemporaryFile("w", suffix=".cpp") as f:
+        f.write("int main (int argc, char **argv) { return 0; }")
+        try:
+            compiler.compile([f.name], extra_postargs=[flagname])
+        except setuptools.distutils.errors.CompileError:
+            return False
+
+    return True
 
 
 class BuildExt(build_ext):
@@ -35,52 +44,66 @@ class BuildExt(build_ext):
             "-std=c++17",
             "-O3",
             "-fPIC",
-            "-fopenmp",
             "-flax-vector-conversions",
             "-DNDEBUG",
             "-DEIGEN_DONT_PARALLELIZE",
-            "-Wall",
-            "-Wextra",
-            "-Wno-missing-field-initializers",
-            "-Wno-unused-parameter",
-            "-Wno-dangling-reference",
             "-Wno-c99-designator",
-            "-Wno-vla-cxx-extension",
+            "-Wno-vla-extension",
             "-Wl,--no-undefined",
         ],
+        "msvc": ["/std:c++17", "/O2", "/EHsc", "/DNDEBUG", "/DEIGEN_DONT_PARALLELIZE"],
     }
     link_opts = {
         "unix": ["-pthread"],
+        "msvc": [],
     }
-    libraries_opt = {
-        "unix": ["stdc++"],
-    }
-
-    if sys.platform == "darwin":
-        c_opts["unix"] += [
-            "-Xpreprocessor",
-            "-stdlib=libc++",
-            "-mmacosx-version-min=10.13",
-        ]
-        link_opts["unix"] += ["-lomp", "-stdlib=libc++", "-mmacosx-version-min=10.13"]
-    else:
-        c_opts["unix"] += ["-march=native"]
-        link_opts["unix"] += ["-lgomp"]
 
     def build_extensions(self):
         ct = self.compiler.compiler_type
         opts = self.c_opts.get(ct, [])
+        link_opts = self.link_opts.get(ct, [])
+
+        if ct == "unix":
+            opts.extend(
+                [
+                    "-fassociative-math",
+                    "-fno-signaling-nans",
+                    "-fno-trapping-math",
+                    "-fno-signed-zeros",
+                    "-freciprocal-math",
+                    "-fno-math-errno",
+                ]
+            )
+
+            if has_flag(self.compiler, "-fvisibility=hidden"):
+                opts.append("-fvisibility=hidden")
+
+            if has_flag(self.compiler, "-march=native"):
+                opts.extend(["-march=native"])
+
+            if has_flag(self.compiler, "-mcpu=native"):
+                opts.extend(["-mcpu=native"])
+
+            if sys.platform == "darwin":
+                opts.extend(["-stdlib=libc++", "-mmacosx-version-min=11.0"])
+                link_opts.extend(["-stdlib=libc++", "-mmacosx-version-min=11.0"])
+
+                if has_flag(self.compiler, "-fopenmp"):
+                    opts.extend(["-fopenmp"])
+                    link_opts.extend(["-lomp"])
+            else:
+                opts.extend(["-fopenmp"])
+                link_opts.extend(["-lgomp"])
+        elif ct == "msvc":
+            opts.append("/openmp")
 
         import numpy as np
 
         for ext in self.extensions:
-            ext.libraries.extend(self.libraries_opt.get(ct, []))
-            ext.language = "c++17"
             ext.extra_compile_args.extend(opts)
-            ext.extra_link_args.extend(self.link_opts.get(ct, []))
+            ext.extra_link_args.extend(link_opts)
             ext.include_dirs.extend(
                 [
-                    os.path.join(parent, "lorann"),
                     # Path to numpy headers
                     np.get_include(),
                 ]
@@ -112,11 +135,14 @@ setuptools.setup(
         "Programming Language :: Python :: 3.13",
         "Operating System :: MacOS",
         "Operating System :: POSIX :: Linux",
+        "Operating System :: Microsoft :: Windows",
     ],
     keywords="vector search, approximate nearest neighbor search",
-    packages=setuptools.find_packages(),
+    packages=find_packages(where="python"),
+    package_dir={"": "python"},
     zip_safe=False,
     ext_modules=ext_modules,
+    include_package_data=True,
     install_requires=["numpy"],
     cmdclass={"build_ext": BuildExt},
 )
