@@ -60,5 +60,4 @@ jobs:
         CXX: ${{ matrix.cpp }}
         LDFLAGS: ${{ matrix.ldflags }}
       run: |
-        cd python
         pip install -v .
