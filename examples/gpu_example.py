@@ -3,10 +3,14 @@ import sys
 import h5py
 import time
 import numpy as np
-from urllib.request import urlretrieve
+from urllib.request import build_opener, install_opener, urlretrieve
 
 from lorann import compute_recall
 from lorann_gpu.jax import Lorann
+
+opener = build_opener()
+opener.addheaders = [("User-agent", "Mozilla/5.0")]
+install_opener(opener)
 
 
 def download(source_url, destination_path):
