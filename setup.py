@@ -75,25 +75,20 @@ class BuildExt(build_ext):
                 ]
             )
 
-            if has_flag(self.compiler, "-fvisibility=hidden"):
-                opts.append("-fvisibility=hidden")
-
-            if has_flag(self.compiler, "-march=native"):
-                opts.extend(["-march=native"])
-
-            if has_flag(self.compiler, "-mcpu=native"):
-                opts.extend(["-mcpu=native"])
+            for flag in ["-fvisibility=hidden", "-march=native", "-mcpu=native"]:
+                if has_flag(self.compiler, flag):
+                    opts.append(flag)
 
             if sys.platform == "darwin":
                 opts.extend(["-stdlib=libc++", "-mmacosx-version-min=11.0"])
                 link_opts.extend(["-stdlib=libc++", "-mmacosx-version-min=11.0"])
 
                 if has_flag(self.compiler, "-fopenmp"):
-                    opts.extend(["-fopenmp"])
-                    link_opts.extend(["-lomp"])
+                    opts.append("-fopenmp")
+                    link_opts.append("-lomp")
             else:
-                opts.extend(["-fopenmp"])
-                link_opts.extend(["-lgomp"])
+                opts.append("-fopenmp")
+                link_opts.append("-lgomp")
         elif ct == "msvc":
             opts.append("/openmp")
 
