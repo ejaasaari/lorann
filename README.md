@@ -1,6 +1,6 @@
 <h1 align="center">LoRANN</h1>
 <div align="center">
-Approximate nearest neighbor search library implementing <a href="https://arxiv.org/abs/2410.18926">reduced-rank regression</a> (NeurIPS '24), a technique enabling extremely fast queries, tiny memory usage, and rapid indexing on modern high-dimensional embedding datasets.
+Approximate nearest neighbor search library implementing <a href="https://arxiv.org/abs/2410.18926">reduced-rank regression</a> (NeurIPS '24), a technique enabling extremely fast queries, tiny memory usage, and rapid indexing on modern embedding datasets.
 </div>
 <br/>
 
@@ -34,13 +34,6 @@ Install the module with `pip install lorann`
 ```shell script
 brew install llvm libomp
 CC=/opt/homebrew/opt/llvm/bin/clang CXX=/opt/homebrew/opt/llvm/bin/clang++ LDFLAGS=-L/opt/homebrew/opt/llvm/lib pip install lorann
-```
-
-An example Dockerfile is provided for building the LoRANN Python wrapper in a Linux environment:
-
-```shell script
-docker build -t lorann .
-docker run --rm -it lorann
 ```
 
 A minimal example for indexing and querying a dataset using LoRANN is provided below:
