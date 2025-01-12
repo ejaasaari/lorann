@@ -26,13 +26,13 @@ Approximate Nearest Neighbor search library implementing <a href="https://arxiv.
 
 ### Python
 
-Install the module with `cd python && pip install .`
+Install the module with `pip install lorann`
 
-On macOS, you must use the Homebrew version of Clang as a compiler:
+On macOS, it is recommended to use the Homebrew version of Clang as the compiler:
 
 ```shell script
 brew install llvm libomp
-CC=/opt/homebrew/opt/llvm/bin/clang CXX=/opt/homebrew/opt/llvm/bin/clang++ LDFLAGS=-L/opt/homebrew/opt/llvm/lib pip install .
+CC=/opt/homebrew/opt/llvm/bin/clang CXX=/opt/homebrew/opt/llvm/bin/clang++ LDFLAGS=-L/opt/homebrew/opt/llvm/lib pip install lorann
 ```
 
 An example Dockerfile is provided for building the LoRANN Python wrapper in a Linux environment:
