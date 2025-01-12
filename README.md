@@ -8,6 +8,7 @@ Approximate nearest neighbor search library implementing <a href="https://arxiv.
     <a href="https://github.com/ejaasaari/lorann/actions/workflows/build.yml"><img src="https://github.com/ejaasaari/lorann/actions/workflows/build.yml/badge.svg" alt="Build status" /></a>
     <a href="https://arxiv.org/abs/2410.18926"><img src="https://img.shields.io/badge/Paper-NeurIPS%3A_LoRANN-salmon" alt="Paper" /></a>
     <a href="https://ejaasaari.github.io/lorann"><img src="https://img.shields.io/badge/api-reference-blue.svg" alt="Documentation" /></a>
+    <a href="https://pypi.org/project/lorann/"><img src="https://img.shields.io/pypi/v/lorann?color=blue" alt="PyPI" /></a>
     <a href="https://github.com/ejaasaari/lorann/blob/master/LICENSE"><img src="https://img.shields.io/github/license/ejaasaari/lorann" alt="License" /></a>
     <a href="https://github.com/ejaasaari/lorann/stargazers"><img src="https://img.shields.io/github/stars/ejaasaari/lorann" alt="GitHub stars" /></a>
 </div>
