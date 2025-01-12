@@ -6,14 +6,6 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y g++
 RUN python -m pip install --upgrade pip setuptools wheel
+RUN python -m pip install lorann
 
-COPY ./ .
-
-WORKDIR /app/python
-
-RUN python -m pip install -r requirements.txt
-RUN python -m pip install .
-
-WORKDIR /app
-
-CMD python -c "import lorannlib; print('LoRANN has been installed')"
+CMD python -c "import lorann; print('LoRANN has been installed')"
