@@ -60,46 +60,41 @@ class LorannFP : public LorannBase {
    * @param idx_out The index output array of length k
    * @param dist_out The (optional) distance output array of length k
    */
-  void search(float *data, const int k, const int clusters_to_search, const int points_to_rerank,
-              int *idx_out, float *dist_out = nullptr) const override {
-    alignas(64) float original_query[_dim];
-    alignas(64) float scaled_query[_dim];
-    float *transformed_query;
+  void search(const float *data, const int k, const int clusters_to_search,
+              const int points_to_rerank, int *idx_out, float *dist_out = nullptr) const override {
+    Vector scaled_query;
+    Vector transformed_query;
 
+    Eigen::Map<const ColVector> data_vec(data, _dim);
     if (_euclidean) {
-      for (int i = 0; i < _dim; ++i) scaled_query[i] = -2. * data[i];
-      for (int i = 0; i < _dim; ++i) original_query[i] = data[i];
+      scaled_query = -2. * data_vec;
     } else {
-      for (int i = 0; i < _dim; ++i) scaled_query[i] = -data[i];
+      scaled_query = -data_vec;
     }
 
     /* apply dimensionality reduction to the query */
-    alignas(64) float transformed_query_tmp[_global_dim];
     if (_global_dim < _dim) {
-#if defined(LORANN_USE_MKL) || defined(lorann_USE_OPENBLAS)
-      cblas_sgemv(CblasRowMajor, CblasTrans, global_transform.rows(), global_transform.cols(), 1,
-                  global_transform.data(), global_transform.cols(), d, 1, 0, global_tmp, 1);
+#if defined(LORANN_USE_MKL) || defined(LORANN_USE_OPENBLAS)
+      transformed_query = Vector(_global_dim);
+      cblas_sgemv(CblasRowMajor, CblasTrans, _global_transform.rows(), _global_transform.cols(), 1,
+                  _global_transform.data(), _global_transform.cols(), scaled_query.data(), 1, 0,
+                  transformed_query.data(), 1);
 #else
-      Eigen::Map<Vector> dvec(scaled_query, _dim);
-      Eigen::Map<Vector> gvec(transformed_query_tmp, _global_dim);
-      gvec = dvec * _global_transform;
+      transformed_query = scaled_query * _global_transform;
 #endif
-      transformed_query = transformed_query_tmp;
     } else {
       transformed_query = scaled_query;
     }
 
     std::vector<int> I(clusters_to_search);
-    select_nearest_clusters(transformed_query, clusters_to_search, I.data());
+    select_nearest_clusters(transformed_query.data(), clusters_to_search, I.data());
 
     const int total_pts = _cluster_sizes(I).sum();
     Eigen::VectorXf all_distances(total_pts);
     Eigen::VectorXi all_idxs(total_pts);
 
 #if defined(LORANN_USE_MKL) || defined(LORANN_USE_OPENBLAS)
-    alignas(64) float tmp[_max_rank];
-#else
-    Eigen::Map<Vector> gvec(transformed_query, _global_dim);
+    Vector tmp(_max_rank);
 #endif
 
     int curr = 0;
@@ -112,28 +107,30 @@ class LorannFP : public LorannBase {
       const RowMatrix &B = _B[cluster];
 
 #if defined(LORANN_USE_MKL) || defined(LORANN_USE_OPENBLAS)
-      if (_euclidean)
-        std::memcpy(&all_distances[curr], cluster_norms[cluster].data(),
-                    sizeof(float) * cluster_norms[cluster].size());
+      if (_euclidean) {
+        std::memcpy(&all_distances[curr], _cluster_norms[cluster].data(), sizeof(float) * sz);
+      } else {
+        std::memset(&all_distances[curr], 0, sizeof(float) * sz);
+      }
 
-      cblas_sgemv(CblasRowMajor, CblasTrans, A.rows(), A.cols(), 1, A.data(), A.cols(), global, 1,
-                  0, tmp, 1);
-      cblas_sgemv(CblasRowMajor, CblasTrans, B.rows(), B.cols(), 1, B.data(), B.cols(), tmp, 1, 1,
-                  &all_distances[curr], 1);
+      cblas_sgemv(CblasRowMajor, CblasTrans, A.rows(), A.cols(), 1, A.data(), A.cols(),
+                  transformed_query.data(), 1, 0, tmp.data(), 1);
+      cblas_sgemv(CblasRowMajor, CblasTrans, B.rows(), B.cols(), 1, B.data(), B.cols(), tmp.data(),
+                  1, 1, &all_distances[curr], 1);
 #else
-      Eigen::Map<Vector> rvec(&all_distances[curr], sz);
+      Eigen::Map<Vector> resvec(&all_distances[curr], sz);
 
       if (_euclidean)
-        rvec = (gvec * A) * B + _cluster_norms[cluster];
+        resvec = (transformed_query * A) * B + _cluster_norms[cluster];
       else
-        rvec = (gvec * A) * B;
+        resvec = (transformed_query * A) * B;
 #endif
 
       std::memcpy(&all_idxs[curr], _cluster_map[cluster].data(), sz * sizeof(int));
       curr += sz;
     }
 
-    select_final(_euclidean ? original_query : scaled_query, k, points_to_rerank, total_pts,
+    select_final(_euclidean ? data : scaled_query.data(), k, points_to_rerank, total_pts,
                  all_idxs.data(), all_distances.data(), idx_out, dist_out);
   }
 

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <memory>
 #include <stdexcept>
 #include <vector>
 
@@ -112,7 +111,7 @@ class LorannBase {
   virtual void build(const float *query_data, const int query_n, const bool approximate,
                      int num_threads) {}
 
-  virtual void search(float *data, const int k, const int clusters_to_search,
+  virtual void search(const float *data, const int k, const int clusters_to_search,
                       const int points_to_rerank, int *idx_out, float *dist_out = nullptr) const {}
 
   virtual ~LorannBase() {}
@@ -264,8 +263,8 @@ class LorannBase {
     ar(_n_samples);
     ar(_dim);
 
-    _owned_data = std::unique_ptr<float[]>(new (std::align_val_t(64)) float[_n_samples * _dim]);
-    _data = _owned_data.get();
+    _owned_data = Vector(_n_samples * _dim);
+    _data = _owned_data.data();
 
     ar(cereal::binary_data(_data, sizeof(float) * _n_samples * _dim), _n_clusters, _global_dim,
        _max_rank, _train_size, _euclidean, _balanced, _cluster_map, _global_centroid_norms);
@@ -283,7 +282,7 @@ class LorannBase {
   }
 
   float *_data;
-  std::unique_ptr<float[]> _owned_data;
+  Vector _owned_data;
 
   int _n_samples;
   int _dim;

@@ -47,8 +47,6 @@ class BuildExt(build_ext):
             "-flax-vector-conversions",
             "-DNDEBUG",
             "-DEIGEN_DONT_PARALLELIZE",
-            "-Wno-c99-designator",
-            "-Wno-vla-extension",
             "-Wl,--no-undefined",
         ],
         "msvc": ["/std:c++17", "/O2", "/EHsc", "/DNDEBUG", "/DEIGEN_DONT_PARALLELIZE"],

@@ -45,6 +45,8 @@ typedef Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> Ro
 typedef Eigen::Matrix<int8_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor> ColMatrixInt8;
 typedef Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor> ColMatrixUInt8;
 
+typedef Eigen::VectorXf ColVector;
+typedef Eigen::VectorXi ColVectorInt;
 typedef Eigen::RowVectorXf Vector;
 typedef Eigen::Matrix<int32_t, 1, Eigen::Dynamic> VectorInt;
 typedef Eigen::Matrix<int8_t, 1, Eigen::Dynamic> VectorInt8;

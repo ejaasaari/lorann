@@ -72,27 +72,26 @@ class Lorann : public LorannBase {
    * @param idx_out The index output array of length k
    * @param dist_out The (optional) distance output array of length k
    */
-  void search(float *data, const int k, const int clusters_to_search, const int points_to_rerank,
-              int *idx_out, float *dist_out = nullptr) const override {
-    alignas(64) float original_query[_dim];
-    alignas(64) float scaled_query[_dim];
-    alignas(64) float transformed_query[_global_dim];
+  void search(const float *data, const int k, const int clusters_to_search,
+              const int points_to_rerank, int *idx_out, float *dist_out = nullptr) const override {
+    ColVector scaled_query;
+    ColVector transformed_query;
+    Eigen::Map<const Eigen::VectorXf> data_vec(data, _dim);
 
     if (_euclidean) {
-      for (int i = 0; i < _dim; ++i) scaled_query[i] = -2. * data[i];
-      for (int i = 0; i < _dim; ++i) original_query[i] = data[i];
+      scaled_query = -2. * data_vec;
     } else {
-      for (int i = 0; i < _dim; ++i) scaled_query[i] = -data[i];
+      scaled_query = -data_vec;
     }
 
     /* apply dimensionality reduction to the query */
 #if defined(LORANN_USE_MKL) || defined(LORANN_USE_OPENBLAS)
-    cblas_sgemv(CblasRowMajor, CblasTrans, global_transform.rows(), global_transform.cols(), 1,
-                global_transform.data(), global_transform.cols(), d, 1, 0, global_tmp, 1);
+    transformed_query = Vector(_global_dim);
+    cblas_sgemv(CblasRowMajor, CblasTrans, _global_transform.rows(), _global_transform.cols(), 1,
+                _global_transform.data(), _global_transform.cols(), scaled_query.data(), 1, 0,
+                transformed_query.data(), 1);
 #else
-    Eigen::Map<Eigen::VectorXf> dvec(scaled_query, _dim);
-    Eigen::Map<Eigen::VectorXf> gvec(transformed_query, _global_dim);
-    gvec = _global_transform.transpose() * dvec;
+    transformed_query = _global_transform.transpose() * scaled_query;
 #endif
 
     const float principal_axis = transformed_query[0];
@@ -102,7 +101,7 @@ class Lorann : public LorannBase {
     VectorInt8 quantized_query(_global_dim);
     VectorInt8 quantized_query_doubled(_max_rank - 1);
     const float quantization_factor =
-        quant_query.quantize_vector(transformed_query, _global_dim, quantized_query.data());
+        quant_query.quantize_vector(transformed_query.data(), _global_dim, quantized_query.data());
 
     const float compensation = quantized_query.cast<float>().sum();
     const float compensation_data = compensation * quant_data.compensation_factor;
@@ -113,8 +112,9 @@ class Lorann : public LorannBase {
                             compensation_query, clusters_to_search, I.data());
 
     const int total_pts = _cluster_sizes(I).sum();
-    Eigen::VectorXf all_distances(total_pts);
-    Eigen::VectorXi all_idxs(total_pts);
+    ColVector all_distances(total_pts);
+    ColVectorInt all_idxs(total_pts);
+    ColVector tmp(_max_rank);
 
     int curr = 0;
     for (int i = 0; i < clusters_to_search; ++i) {
@@ -128,13 +128,12 @@ class Lorann : public LorannBase {
       const Vector &B_correction = _B_corrections[cluster];
 
       /* compute s = q^T A */
-      alignas(64) float tmp[_max_rank];
       quant_data.quantized_matvec_product_A(A, quantized_query, A_correction, quantization_factor,
-                                            principal_axis, compensation_data, tmp);
+                                            principal_axis, compensation_data, tmp.data());
       const float principal_axis_tmp = tmp[0];
 
-      const float tmpfact =
-          quant_query.quantize_vector(tmp + 1, _max_rank - 1, quantized_query_doubled.data());
+      const float tmpfact = quant_query.quantize_vector(tmp.data() + 1, _max_rank - 1,
+                                                        quantized_query_doubled.data());
       const float compensation_tmp =
           quantized_query_doubled.cast<float>().sum() * quant_data.compensation_factor;
 
@@ -151,7 +150,7 @@ class Lorann : public LorannBase {
       curr += sz;
     }
 
-    select_final(_euclidean ? original_query : scaled_query, k, points_to_rerank, total_pts,
+    select_final(_euclidean ? data : scaled_query.data(), k, points_to_rerank, total_pts,
                  all_idxs.data(), all_distances.data(), idx_out, dist_out);
   }
 
@@ -318,13 +317,13 @@ class Lorann : public LorannBase {
   void select_nearest_clusters(const VectorInt8 &query_quantized, const float quantization_factor,
                                const float correction, const float compensation, int k,
                                int *out) const {
-    alignas(64) float dists[_centroids_quantized.cols()];
+    ColVector dists(_centroids_quantized.cols());
     quant_query.quantized_matvec_product_A(_centroids_quantized, query_quantized,
                                            _centroid_correction, quantization_factor, correction,
-                                           compensation, dists);
+                                           compensation, dists.data());
     if (_euclidean)
-      add_inplace(_global_centroid_norms.data(), dists, _global_centroid_norms.size());
-    select_k(k, out, _centroids_quantized.cols(), NULL, dists);
+      add_inplace(_global_centroid_norms.data(), dists.data(), _global_centroid_norms.size());
+    select_k(k, out, _centroids_quantized.cols(), NULL, dists.data());
   }
 
   friend class cereal::access;
