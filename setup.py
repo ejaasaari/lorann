@@ -109,7 +109,7 @@ setuptools.setup(
     name="lorann",
     author="Elias Jääsaari",
     author_email="elias.jaasaari@gmail.com",
-    version="0.1",
+    version="0.2",
     description="Approximate Nearest Neighbor search library with extremely fast queries, tiny memory usage, and rapid indexing.",
     long_description=long_description,
     long_description_content_type="text/markdown",
