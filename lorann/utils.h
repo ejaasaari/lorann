@@ -457,11 +457,13 @@ static inline Eigen::MatrixXf compute_V(const Eigen::MatrixXf &X, const int rank
     std::mt19937_64 randomEngine{};
     Rsvd::RandomizedSvd<Eigen::MatrixXf, std::mt19937_64, Rsvd::SubspaceIterationConditioner::Lu>
         rsvd(randomEngine);
-    rsvd.compute(X, std::min(X.cols(), static_cast<long>(rank)), RSVD_OVERSAMPLES, RSVD_N_ITER);
+    rsvd.compute(X, std::min(static_cast<long>(X.cols()), static_cast<long>(rank)),
+                 RSVD_OVERSAMPLES, RSVD_N_ITER);
 
     Eigen::MatrixXf V = Eigen::MatrixXf::Zero(X.cols(), rank);
-    const long rows = std::min(X.cols(), rsvd.matrixV().rows());
-    const long cols = std::min(static_cast<long>(rank), rsvd.matrixV().cols());
+    const long rows =
+        std::min(static_cast<long>(X.cols()), static_cast<long>(rsvd.matrixV().rows()));
+    const long cols = std::min(static_cast<long>(rank), static_cast<long>(rsvd.matrixV().cols()));
     V.topLeftCorner(rows, cols) = rsvd.matrixV().topLeftCorner(rows, cols);
 
     return V;
@@ -470,8 +472,9 @@ static inline Eigen::MatrixXf compute_V(const Eigen::MatrixXf &X, const int rank
     Eigen::BDCSVD<Eigen::MatrixXf, Eigen::ComputeFullV> svd(X);
 
     Eigen::MatrixXf V = Eigen::MatrixXf::Zero(X.cols(), rank);
-    const long rows = std::min(X.cols(), svd.matrixV().rows());
-    const long cols = std::min(static_cast<long>(rank), svd.matrixV().cols());
+    const long rows =
+        std::min(static_cast<long>(X.cols()), static_cast<long>(svd.matrixV().rows()));
+    const long cols = std::min(static_cast<long>(rank), static_cast<long>(svd.matrixV().cols()));
     V.topLeftCorner(rows, cols) = svd.matrixV().topLeftCorner(rows, cols);
 
     return V;
