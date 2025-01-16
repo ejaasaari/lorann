@@ -2,11 +2,15 @@ name: Build Test
 
 on:
   push:
-    branches:
-      - main
+    paths:
+      - 'setup.py'
+      - 'src/**'
+      - 'python/**'
   pull_request:
-    branches:
-      - main
+    paths:
+      - 'setup.py'
+      - 'src/**'
+      - 'python/**'
 
 jobs:
   build:
@@ -23,6 +27,7 @@ jobs:
             c: /opt/homebrew/opt/llvm/bin/clang
             cpp: /opt/homebrew/opt/llvm/bin/clang++
             ldflags: -L/opt/homebrew/opt/llvm/lib
+          - os: windows-latest
 
     runs-on: ${{ matrix.os }}
 

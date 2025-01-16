@@ -49,7 +49,7 @@ class BuildExt(build_ext):
             "-DEIGEN_DONT_PARALLELIZE",
             "-Wl,--no-undefined",
         ],
-        "msvc": ["/std:c++17", "/O2", "/EHsc", "/DNDEBUG", "/DEIGEN_DONT_PARALLELIZE"],
+        "msvc": ["/std:c++17", "/O2", "/EHsc", "/DNDEBUG", "/DEIGEN_DONT_PARALLELIZE", "/wd4244"],
     }
     link_opts = {
         "unix": ["-pthread"],
