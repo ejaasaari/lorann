@@ -527,26 +527,83 @@ static PyMethodDef KMeansMethods[] = {
 };
 
 static PyTypeObject LorannIndexType = {
-    PyVarObject_HEAD_INIT(NULL, 0).tp_name = "lorann.LorannIndex", /*tp_name*/
-    .tp_basicsize = sizeof(LorannIndex),
-    .tp_itemsize = 0,
-    .tp_dealloc = (destructor)lorann_dealloc,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
-    .tp_doc = "Lorann index object",
-    .tp_methods = LorannMethods,
-    .tp_init = (initproc)Lorann_init,
-    .tp_new = Lorann_new,
+    PyVarObject_HEAD_INIT(NULL, 0) "lorann.LorannIndex", /* tp_name */
+    sizeof(LorannIndex),                                 /* tp_basicsize */
+    0,                                                   /* tp_itemsize */
+    (destructor)lorann_dealloc,                          /* tp_dealloc */
+    0,                                                   /* tp_vectorcall_offset */
+    0,                                                   /* tp_getattr */
+    0,                                                   /* tp_setattr */
+    0,                                                   /* tp_as_async */
+    0,                                                   /* tp_repr */
+    0,                                                   /* tp_as_number */
+    0,                                                   /* tp_as_sequence */
+    0,                                                   /* tp_as_mapping */
+    0,                                                   /* tp_hash */
+    0,                                                   /* tp_call */
+    0,                                                   /* tp_str */
+    0,                                                   /* tp_getattro */
+    0,                                                   /* tp_setattro */
+    0,                                                   /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,            /* tp_flags */
+    "Lorann index object",                               /* tp_doc */
+    0,                                                   /* tp_traverse */
+    0,                                                   /* tp_clear */
+    0,                                                   /* tp_richcompare */
+    0,                                                   /* tp_weaklistoffset */
+    0,                                                   /* tp_iter */
+    0,                                                   /* tp_iternext */
+    LorannMethods,                                       /* tp_methods */
+    0,                                                   /* tp_members */
+    0,                                                   /* tp_getset */
+    0,                                                   /* tp_base */
+    0,                                                   /* tp_dict */
+    0,                                                   /* tp_descr_get */
+    0,                                                   /* tp_descr_set */
+    0,                                                   /* tp_dictoffset */
+    (initproc)Lorann_init,                               /* tp_init */
+    0,                                                   /* tp_alloc */
+    Lorann_new,                                          /* tp_new */
 };
 
 static PyTypeObject KMeansIndexType = {
-    PyVarObject_HEAD_INIT(NULL, 0).tp_name = "lorann.KMeansIndex", /*tp_name*/
-    .tp_basicsize = sizeof(KMeansIndex),
-    .tp_dealloc = (destructor)kmeans_dealloc,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
-    .tp_doc = "Lorann index object",
-    .tp_methods = KMeansMethods,
-    .tp_init = (initproc)KMeans_init,
-    .tp_new = KMeans_new,
+    PyVarObject_HEAD_INIT(NULL, 0) "lorann.KMeansIndex", /* tp_name */
+    sizeof(KMeansIndex),                                 /* tp_basicsize */
+    0,                                                   /* tp_itemsize */
+    (destructor)kmeans_dealloc,                          /* tp_dealloc */
+    0,                                                   /* tp_vectorcall_offset */
+    0,                                                   /* tp_getattr */
+    0,                                                   /* tp_setattr */
+    0,                                                   /* tp_as_async */
+    0,                                                   /* tp_repr */
+    0,                                                   /* tp_as_number */
+    0,                                                   /* tp_as_sequence */
+    0,                                                   /* tp_as_mapping */
+    0,                                                   /* tp_hash */
+    0,                                                   /* tp_call */
+    0,                                                   /* tp_str */
+    0,                                                   /* tp_getattro */
+    0,                                                   /* tp_setattro */
+    0,                                                   /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,            /* tp_flags */
+    "KMeans index object",                               /* tp_doc */
+    0,                                                   /* tp_traverse */
+    0,                                                   /* tp_clear */
+    0,                                                   /* tp_richcompare */
+    0,                                                   /* tp_weaklistoffset */
+    0,                                                   /* tp_iter */
+    0,                                                   /* tp_iternext */
+    KMeansMethods,                                       /* tp_methods */
+    0,                                                   /* tp_members */
+    0,                                                   /* tp_getset */
+    0,                                                   /* tp_base */
+    0,                                                   /* tp_dict */
+    0,                                                   /* tp_descr_get */
+    0,                                                   /* tp_descr_set */
+    0,                                                   /* tp_dictoffset */
+    (initproc)KMeans_init,                               /* tp_init */
+    0,                                                   /* tp_alloc */
+    KMeans_new,                                          /* tp_new */
 };
 
 static PyMethodDef module_methods[] = {
@@ -555,8 +612,15 @@ static PyMethodDef module_methods[] = {
 };
 
 static struct PyModuleDef moduledef = {
-    PyModuleDef_HEAD_INIT, .m_name = "lorannlib",       .m_doc = "",
-    .m_size = -1,          .m_methods = module_methods,
+    PyModuleDef_HEAD_INIT,
+    "lorannlib",    /* m_name */
+    "",             /* m_doc */
+    -1,             /* m_size */
+    module_methods, /* m_methods */
+    NULL,           /* m_slots */
+    NULL,           /* m_traverse */
+    NULL,           /* m_clear */
+    NULL            /* m_free */
 };
 
 PyMODINIT_FUNC PyInit_lorannlib(void) {
