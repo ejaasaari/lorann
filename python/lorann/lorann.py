@@ -478,12 +478,11 @@ def compute_V(
     Args:
         A
         k
-        approximate
 
     Returns:
         $V_r$
     """
-    return lorannlib.compute_V(A, r, approximate)
+    return lorannlib.compute_V(A, r)
 
 
 def compute_recall(approx: npt.NDArray[np.int32], exact: npt.NDArray[np.int32]) -> float:

@@ -4,6 +4,8 @@
 #include <omp.h>
 #endif
 
+#define EIGEN_DONT_PARALLELIZE
+
 #include <Eigen/Dense>
 #include <cstring>
 #include <stdexcept>
@@ -270,7 +272,7 @@ class Lorann : public LorannBase {
         beta_hat = X.colPivHouseholderQr().solve(Q * pts.transpose());
         Y_hat = X * beta_hat;
       }
-      Eigen::MatrixXf V = compute_V(Y_hat, _max_rank, approximate);
+      Eigen::MatrixXf V = compute_V(Y_hat, _max_rank);
 
       /* randomly rotate the matrix V */
       Eigen::MatrixXf sub_rot_mat = generate_rotation_matrix(V.cols() - 1);

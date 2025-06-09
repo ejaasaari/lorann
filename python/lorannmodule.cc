@@ -480,16 +480,16 @@ static PyObject *lorann_load(PyObject *cls, PyObject *args) {
 
 static PyObject *lorann_compute_V(PyObject *self, PyObject *args) {
   PyArrayObject *A;
-  int rank, approximate = 1;
+  int rank;
 
-  if (!PyArg_ParseTuple(args, "O!i|i", &PyArray_Type, &A, &rank, &approximate)) return NULL;
+  if (!PyArg_ParseTuple(args, "O!i|i", &PyArray_Type, &A, &rank)) return NULL;
 
   const int n = PyArray_DIM(A, 0);
   const int d = PyArray_DIM(A, 1);
   float *A_data = reinterpret_cast<float *>(PyArray_DATA(A));
 
   Eigen::MatrixXf Y = Eigen::Map<RowMatrix>(A_data, n, d);
-  Eigen::MatrixXf V = Lorann::compute_V(Y, rank, approximate);
+  Eigen::MatrixXf V = Lorann::compute_V(Y, rank);
 
   PyObject *ret;
   npy_intp dims[2] = {V.cols(), V.rows()};

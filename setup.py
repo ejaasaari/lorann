@@ -46,10 +46,9 @@ class BuildExt(build_ext):
             "-fPIC",
             "-flax-vector-conversions",
             "-DNDEBUG",
-            "-DEIGEN_DONT_PARALLELIZE",
             "-Wl,--no-undefined",
         ],
-        "msvc": ["/std:c++17", "/O2", "/EHsc", "/DNDEBUG", "/DEIGEN_DONT_PARALLELIZE", "/wd4244"],
+        "msvc": ["/std:c++17", "/O2", "/EHsc", "/DNDEBUG", "/wd4244"],
     }
     link_opts = {
         "unix": ["-pthread"],

@@ -4,6 +4,8 @@
 #include <omp.h>
 #endif
 
+#define EIGEN_DONT_PARALLELIZE
+
 #include <Eigen/Dense>
 #include <cstring>
 #include <vector>
@@ -233,7 +235,7 @@ class LorannFP : public LorannBase {
         Y_hat = Q * pts.transpose();
       }
 
-      Eigen::MatrixXf V = compute_V(Y_hat, _max_rank, approximate);
+      Eigen::MatrixXf V = compute_V(Y_hat, _max_rank);
       _A[i] = beta_hat * V;
       _B[i] = V.transpose();
     }

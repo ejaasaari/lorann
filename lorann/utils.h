@@ -450,35 +450,21 @@ static inline Eigen::MatrixXf compute_principal_components(const Eigen::MatrixXf
 }
 
 /* Computes V_r, the first r right singular vectors of X */
-static inline Eigen::MatrixXf compute_V(const Eigen::MatrixXf &X, const int rank,
-                                        const bool approximate) {
-  if (approximate) {
-    /* randomized (approximate) SVD */
-    std::mt19937_64 randomEngine{};
-    Rsvd::RandomizedSvd<Eigen::MatrixXf, std::mt19937_64, Rsvd::SubspaceIterationConditioner::Lu>
-        rsvd(randomEngine);
-    rsvd.compute(X, std::min(static_cast<long>(X.cols()), static_cast<long>(rank)),
-                 RSVD_OVERSAMPLES, RSVD_N_ITER);
+static inline Eigen::MatrixXf compute_V(const Eigen::MatrixXf &X, const int rank) {
+  /* randomized (approximate) SVD */
+  std::mt19937_64 randomEngine{};
+  Rsvd::RandomizedSvd<Eigen::MatrixXf, std::mt19937_64, Rsvd::SubspaceIterationConditioner::Lu>
+      rsvd(randomEngine);
+  rsvd.compute(X, std::min(static_cast<long>(X.cols()), static_cast<long>(rank)),
+                RSVD_OVERSAMPLES, RSVD_N_ITER);
 
-    Eigen::MatrixXf V = Eigen::MatrixXf::Zero(X.cols(), rank);
-    const long rows =
-        std::min(static_cast<long>(X.cols()), static_cast<long>(rsvd.matrixV().rows()));
-    const long cols = std::min(static_cast<long>(rank), static_cast<long>(rsvd.matrixV().cols()));
-    V.topLeftCorner(rows, cols) = rsvd.matrixV().topLeftCorner(rows, cols);
+  Eigen::MatrixXf V = Eigen::MatrixXf::Zero(X.cols(), rank);
+  const long rows =
+      std::min(static_cast<long>(X.cols()), static_cast<long>(rsvd.matrixV().rows()));
+  const long cols = std::min(static_cast<long>(rank), static_cast<long>(rsvd.matrixV().cols()));
+  V.topLeftCorner(rows, cols) = rsvd.matrixV().topLeftCorner(rows, cols);
 
-    return V;
-  } else {
-    /* exact SVD */
-    Eigen::BDCSVD<Eigen::MatrixXf, Eigen::ComputeFullV> svd(X);
-
-    Eigen::MatrixXf V = Eigen::MatrixXf::Zero(X.cols(), rank);
-    const long rows =
-        std::min(static_cast<long>(X.cols()), static_cast<long>(svd.matrixV().rows()));
-    const long cols = std::min(static_cast<long>(rank), static_cast<long>(svd.matrixV().cols()));
-    V.topLeftCorner(rows, cols) = svd.matrixV().topLeftCorner(rows, cols);
-
-    return V;
-  }
+  return V;
 }
 
 }  // namespace Lorann
