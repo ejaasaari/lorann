@@ -1,4 +1,5 @@
 #define PY_SSIZE_T_CLEAN
+#define EIGEN_DONT_PARALLELIZE
 
 #ifdef _OPENMP
 #include <omp.h>
