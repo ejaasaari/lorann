@@ -29,6 +29,9 @@ class LorannIndex(object):
         train_size: int = 5,
         euclidean: bool = False,
         balanced: bool = False,
+        max_balance_diff: int = 16,
+        partly_remaining_factor: float = 0.15,
+        penalty_factor: float = 0.25,
     ) -> None:
         """
         Initializes a LorannIndex object. The initializer does not build the actual index.
@@ -99,6 +102,9 @@ class LorannIndex(object):
             train_size,
             euclidean,
             balanced,
+            max_balance_diff,
+            partly_remaining_factor,
+            penalty_factor,
         )
 
         self.built = False
@@ -327,6 +333,8 @@ class KMeans(object):
         euclidean: bool = False,
         balanced: bool = False,
         max_balance_diff: int = 16,
+        partly_remaining_factor: float = 0.15,
+        penalty_factor: float = 2.5,
         verbose: bool = False,
     ) -> None:
         """
@@ -351,7 +359,14 @@ class KMeans(object):
         assert max_balance_diff > 0, "max_balance_diff must be positive"
 
         self.index = lorannlib.KMeans(
-            n_clusters, iters, euclidean, balanced, max_balance_diff, verbose
+            n_clusters,
+            iters,
+            euclidean,
+            balanced,
+            max_balance_diff,
+            partly_remaining_factor,
+            penalty_factor,
+            verbose,
         )
         self.trained = False
 

@@ -17,7 +17,8 @@ namespace Lorann {
 class LorannBase {
  public:
   LorannBase(float *data, int m, int d, int n_clusters, int global_dim, int rank, int train_size,
-             bool euclidean, bool balanced)
+             bool euclidean, bool balanced, int max_balance_diff, float partly_remaining_factor,
+             float penalty_factor)
       : _data(data),
         _n_samples(m),
         _dim(d),
@@ -26,7 +27,10 @@ class LorannBase {
         _max_rank(std::min(rank, d)),
         _train_size(train_size),
         _euclidean(euclidean),
-        _balanced(balanced) {
+        _balanced(balanced),
+        _max_balance_diff(max_balance_diff),
+        _partly_remaining_factor(partly_remaining_factor),
+        _penalty_factor(penalty_factor) {
     if (d < 64) {
       throw std::invalid_argument(
           "LoRANN is meant for high-dimensional data: the dimensionality should be at least 64.");
@@ -292,6 +296,9 @@ class LorannBase {
   int _train_size;
   bool _euclidean;
   bool _balanced;
+  int _max_balance_diff;
+  float _partly_remaining_factor;
+  float _penalty_factor;
 
   /* vector of points assigned to a cluster, for each cluster */
   std::vector<std::vector<int>> _cluster_map;

@@ -12,8 +12,8 @@
 #include "utils.h"
 
 #define EPS (1 / 1024.)
-#define PARTLY_REMAINING_FACTOR 0.15
-#define PENALTY_FACTOR 2.5
+// #define PARTLY_REMAINING_FACTOR 0.15
+// #define PENALTY_FACTOR 2.5
 
 namespace Lorann {
 
@@ -35,12 +35,15 @@ class KMeans {
    * @param verbose Whether to enable verbose output. Defaults to false.
    */
   KMeans(int n_clusters, int iters = 25, bool euclidean = false, bool balanced = false,
-         int max_balance_diff = 16, bool verbose = false)
+         int max_balance_diff = 16, float partly_remaining_factor = 0.15,
+         float penalty_factor = 2.5, bool verbose = false)
       : _iters(iters),
         _n_clusters(n_clusters),
         _euclidean(euclidean),
         _balanced(balanced),
         _max_balance_diff(max_balance_diff),
+        _partly_remaining_factor(partly_remaining_factor),
+        _penalty_factor(penalty_factor),
         _verbose(verbose),
         _trained(false) {
     LORANN_ENSURE_POSITIVE(n_clusters);
@@ -346,8 +349,8 @@ class KMeans {
     float n_min = _cluster_sizes.minCoeff();
     float n_max = _cluster_sizes.maxCoeff();
 
-    constexpr float partly_remaining_factor = PARTLY_REMAINING_FACTOR;
-    constexpr float penalty_factor = PENALTY_FACTOR;
+    const float partly_remaining_factor = _partly_remaining_factor;
+    const float penalty_factor = _penalty_factor;
 
     int iters = 0;
     float p_now = 0;
@@ -435,6 +438,8 @@ class KMeans {
   const bool _euclidean;
   const bool _balanced;
   const int _max_balance_diff;
+  const float _partly_remaining_factor;
+  const float _penalty_factor;
   const bool _verbose;
   bool _trained;
 };

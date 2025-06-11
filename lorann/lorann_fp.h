@@ -47,8 +47,11 @@ class LorannFP : public LorannBase {
    * @param balanced Whether to use balanced clustering. Defaults to false.
    */
   explicit LorannFP(float *data, int m, int d, int n_clusters, int global_dim, int rank = 24,
-                    int train_size = 5, bool euclidean = false, bool balanced = false)
-      : LorannBase(data, m, d, n_clusters, global_dim, rank, train_size, euclidean, balanced) {}
+                    int train_size = 5, bool euclidean = false, bool balanced = false,
+                    int max_balance_diff = 16, float partly_remaining_factor = 0.15,
+                    float penalty_factor = 2.5)
+      : LorannBase(data, m, d, n_clusters, global_dim, rank, train_size, euclidean, balanced,
+                   max_balance_diff, partly_remaining_factor, penalty_factor) {}
 
   /**
    * @brief Query the index.
@@ -165,7 +168,7 @@ class LorannFP : public LorannBase {
     Eigen::Map<const RowMatrix> query_mat(query_data, query_n, _dim);
 
     KMeans global_clustering(_n_clusters, KMEANS_ITERATIONS, _euclidean, _balanced,
-                             KMEANS_MAX_BALANCE_DIFF, 0);
+                             _max_balance_diff, _partly_remaining_factor, _penalty_factor, false);
 
     std::vector<std::vector<int>> cluster_train_map;
     if (_global_dim < _dim) {

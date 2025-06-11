@@ -51,8 +51,11 @@ class Lorann : public LorannBase {
    * @param balanced Whether to use balanced clustering. Defaults to false.
    */
   explicit Lorann(float *data, int m, int d, int n_clusters, int global_dim, int rank = 32,
-                  int train_size = 5, bool euclidean = false, bool balanced = false)
-      : LorannBase(data, m, d, n_clusters, global_dim, rank + 1, train_size, euclidean, balanced) {
+                  int train_size = 5, bool euclidean = false, bool balanced = false,
+                  int max_balance_diff = 16, float partly_remaining_factor = 0.15,
+                  float penalty_factor = 2.5)
+      : LorannBase(data, m, d, n_clusters, global_dim, rank + 1, train_size, euclidean, balanced,
+                   max_balance_diff, partly_remaining_factor, penalty_factor) {
     if (!(rank == 16 || rank == 32 || rank == 64)) {
       throw std::invalid_argument("rank must be 16, 32, or 64");
     }
@@ -201,7 +204,7 @@ class Lorann : public LorannBase {
 
     /* clustering */
     KMeans global_clustering(_n_clusters, KMEANS_ITERATIONS, _euclidean, _balanced,
-                             KMEANS_MAX_BALANCE_DIFF, 0);
+                             _max_balance_diff, _partly_remaining_factor, _penalty_factor, false);
 
     std::vector<std::vector<int>> cluster_train_map;
     if (query_mat.data() != train_mat.data()) {

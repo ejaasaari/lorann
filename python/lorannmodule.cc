@@ -53,14 +53,16 @@ static PyObject *KMeans_new(PyTypeObject *type, PyObject *args, PyObject *kwds) 
 
 static int KMeans_init(KMeansIndex *self, PyObject *args, PyObject *kwds) {
   int n_clusters, iters, euclidean, balanced, max_balance_diff, verbose;
+  float partly_remaining_factor, penalty_factor;
 
-  if (!PyArg_ParseTuple(args, "iiiiii", &n_clusters, &iters, &euclidean, &balanced,
-                        &max_balance_diff, &verbose)) {
+  if (!PyArg_ParseTuple(args, "iiiiiffi", &n_clusters, &iters, &euclidean, &balanced,
+                        &max_balance_diff, &partly_remaining_factor, &penalty_factor, &verbose)) {
     return -1;
   }
 
-  self->index = std::make_unique<Lorann::KMeans>(n_clusters, iters, euclidean, balanced,
-                                                 max_balance_diff, verbose);
+  self->index =
+      std::make_unique<Lorann::KMeans>(n_clusters, iters, euclidean, balanced, max_balance_diff,
+                                       partly_remaining_factor, penalty_factor, verbose);
   return 0;
 }
 
@@ -172,10 +174,14 @@ static PyObject *Lorann_new(PyTypeObject *type, PyObject *args, PyObject *kwds) 
 
 static int Lorann_init(LorannIndex *self, PyObject *args, PyObject *kwds) {
   PyArrayObject *py_data;
-  int n, dim, quantization_bits, n_clusters, global_dim, rank, train_size, euclidean, balanced;
+  int n, dim, quantization_bits, n_clusters, global_dim, rank, train_size, euclidean, balanced,
+      max_balance_diff;
+  float partly_remaining_factor, penalty_factor;
 
-  if (!PyArg_ParseTuple(args, "O!iiiiiiiii", &PyArray_Type, &py_data, &n, &dim, &quantization_bits,
-                        &n_clusters, &global_dim, &rank, &train_size, &euclidean, &balanced)) {
+  if (!PyArg_ParseTuple(args, "O!iiiiiiiiiiff", &PyArray_Type, &py_data, &n, &dim,
+                        &quantization_bits, &n_clusters, &global_dim, &rank, &train_size,
+                        &euclidean, &balanced, &max_balance_diff, &partly_remaining_factor,
+                        &penalty_factor)) {
     return -1;
   }
 
@@ -190,8 +196,9 @@ static int Lorann_init(LorannIndex *self, PyObject *args, PyObject *kwds) {
     self->index = std::make_unique<Lorann::Lorann<Lorann::SQ8Quantizer>>(
         data, n, dim, n_clusters, global_dim, rank, train_size, euclidean, balanced);
   } else {
-    self->index = std::make_unique<Lorann::LorannFP>(data, n, dim, n_clusters, global_dim, rank,
-                                                     train_size, euclidean, balanced);
+    self->index = std::make_unique<Lorann::LorannFP>(
+        data, n, dim, n_clusters, global_dim, rank, train_size, euclidean, balanced,
+        max_balance_diff, partly_remaining_factor, penalty_factor);
   }
 
   return 0;
