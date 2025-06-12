@@ -191,10 +191,12 @@ static int Lorann_init(LorannIndex *self, PyObject *args, PyObject *kwds) {
   float *data = reinterpret_cast<float *>(PyArray_DATA(py_data));
   if (quantization_bits == 4) {
     self->index = std::make_unique<Lorann::Lorann<Lorann::SQ4Quantizer>>(
-        data, n, dim, n_clusters, global_dim, rank, train_size, euclidean, balanced);
+        data, n, dim, n_clusters, global_dim, rank, train_size, euclidean, balanced,
+        max_balance_diff, partly_remaining_factor, penalty_factor);
   } else if (quantization_bits == 8) {
     self->index = std::make_unique<Lorann::Lorann<Lorann::SQ8Quantizer>>(
-        data, n, dim, n_clusters, global_dim, rank, train_size, euclidean, balanced);
+        data, n, dim, n_clusters, global_dim, rank, train_size, euclidean, balanced,
+        max_balance_diff, partly_remaining_factor, penalty_factor);
   } else {
     self->index = std::make_unique<Lorann::LorannFP>(
         data, n, dim, n_clusters, global_dim, rank, train_size, euclidean, balanced,
