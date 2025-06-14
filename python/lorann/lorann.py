@@ -29,9 +29,7 @@ class LorannIndex(object):
         train_size: int = 5,
         euclidean: bool = False,
         balanced: bool = False,
-        max_balance_diff: int = 16,
-        partly_remaining_factor: float = 0.15,
-        penalty_factor: float = 0.25,
+        verbose: bool = False,
     ) -> None:
         """
         Initializes a LorannIndex object. The initializer does not build the actual index.
@@ -57,6 +55,7 @@ class LorannIndex(object):
             euclidean: Whether to use Euclidean distance instead of (negative) inner product as the
                 dissimilarity measure. Defaults to False.
             balanced: Whether to use balanced clustering. Defaults to False.
+            verbose: Whether to use verbose output for index construction. Defaults to False.
 
         Raises:
             ValueError: If the input parameters are invalid.
@@ -102,9 +101,7 @@ class LorannIndex(object):
             train_size,
             euclidean,
             balanced,
-            max_balance_diff,
-            partly_remaining_factor,
-            penalty_factor,
+            verbose,
         )
 
         self.built = False
@@ -333,8 +330,7 @@ class KMeans(object):
         euclidean: bool = False,
         balanced: bool = False,
         max_balance_diff: int = 16,
-        partly_remaining_factor: float = 0.15,
-        penalty_factor: float = 2.5,
+        penalty_factor: float = 1.4,
         verbose: bool = False,
     ) -> None:
         """
@@ -349,6 +345,9 @@ class KMeans(object):
                 algorithm. Defaults to False.
             max_balance_diff: The maximum allowed difference in cluster sizes for balanced
                 clustering. Used only if balanced = True. Defaults to 16.
+            penalty_factor: Penalty factor for balanced clustering. Higher values can be used for
+                faster clustering at the cost of clustering quality. Used only if balanced = True.
+                Defaults to 1.4.
             verbose: Whether to enable verbose output. Defaults to False.
 
         Returns:
@@ -357,6 +356,7 @@ class KMeans(object):
         assert n_clusters > 0, "n_clusters must be positive"
         assert iters > 0, "iters must be positive"
         assert max_balance_diff > 0, "max_balance_diff must be positive"
+        assert penalty_factor > 1, "penalty_factor must be greater than 1"
 
         self.index = lorannlib.KMeans(
             n_clusters,
@@ -364,7 +364,6 @@ class KMeans(object):
             euclidean,
             balanced,
             max_balance_diff,
-            partly_remaining_factor,
             penalty_factor,
             verbose,
         )

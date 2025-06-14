@@ -8,7 +8,8 @@
 #include "utils.h"
 
 #define KMEANS_ITERATIONS 10
-#define KMEANS_MAX_BALANCE_DIFF 16
+#define BALANCED_KMEANS_MAX_DIFF 16
+#define BALANCED_KMEANS_PENALTY 1.4
 #define SAMPLED_POINTS_PER_CLUSTER 256
 #define GLOBAL_DIM_REDUCTION_SAMPLES 16384
 
@@ -17,8 +18,7 @@ namespace Lorann {
 class LorannBase {
  public:
   LorannBase(float *data, int m, int d, int n_clusters, int global_dim, int rank, int train_size,
-             bool euclidean, bool balanced, int max_balance_diff, float partly_remaining_factor,
-             float penalty_factor)
+             bool euclidean, bool balanced, bool verbose)
       : _data(data),
         _n_samples(m),
         _dim(d),
@@ -28,9 +28,7 @@ class LorannBase {
         _train_size(train_size),
         _euclidean(euclidean),
         _balanced(balanced),
-        _max_balance_diff(max_balance_diff),
-        _partly_remaining_factor(partly_remaining_factor),
-        _penalty_factor(penalty_factor) {
+        _verbose(verbose) {
     if (d < 64) {
       throw std::invalid_argument(
           "LoRANN is meant for high-dimensional data: the dimensionality should be at least 64.");
@@ -296,9 +294,7 @@ class LorannBase {
   int _train_size;
   bool _euclidean;
   bool _balanced;
-  int _max_balance_diff;
-  float _partly_remaining_factor;
-  float _penalty_factor;
+  bool _verbose;
 
   /* vector of points assigned to a cluster, for each cluster */
   std::vector<std::vector<int>> _cluster_map;
