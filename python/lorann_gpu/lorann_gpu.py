@@ -12,7 +12,7 @@ def run_kmeans(
     n_clusters,
     euclidean=False,
     balanced=True,
-    max_balance_diff=16,
+    max_balance_diff=32,
     penalty_factor=2.0,
     verbose=True,
 ):
@@ -66,7 +66,6 @@ class LorannIndex:
         train_size: int = 5,
         euclidean: bool = False,
         batch_size: int = 1,
-        max_balance_diff: int = 16,
         penalty_factor: float = 2.0,
         verbose: bool = False,
         *,
@@ -125,7 +124,6 @@ class LorannIndex:
                 n_clusters,
                 euclidean,
                 balanced=True,
-                max_balance_diff=max_balance_diff,
                 penalty_factor=penalty_factor,
                 verbose=verbose,
             )
@@ -137,7 +135,6 @@ class LorannIndex:
                     n_clusters,
                     euclidean,
                     balanced=True,
-                    max_balance_diff=max_balance_diff,
                     penalty_factor=penalty_factor,
                     verbose=verbose,
                 )
@@ -148,7 +145,6 @@ class LorannIndex:
                     n_clusters,
                     euclidean,
                     balanced=True,
-                    max_balance_diff=max_balance_diff,
                     penalty_factor=penalty_factor,
                     verbose=verbose,
                 )
