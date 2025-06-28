@@ -2,11 +2,12 @@ import os
 import sys
 import h5py
 import time
+import torch
 import numpy as np
 from urllib.request import build_opener, install_opener, urlretrieve
 
 from lorann import compute_recall
-from lorann_gpu.jax import Lorann
+from lorann_gpu import LorannIndex
 
 opener = build_opener()
 opener.addheaders = [("User-agent", "Mozilla/5.0")]
@@ -57,22 +58,21 @@ f = h5py.File("%s.hdf5" % dataset, "r")
 train = f["train"][:]
 test = f["test"][:]
 
-# if using angular distance, make sure all vectors have unit norm
+# if using cosine distance, make sure all vectors have unit norm
 if not euclidean:
     train[np.linalg.norm(train, axis=1) == 0] = 1.0 / np.sqrt(train.shape[1])
     train /= np.linalg.norm(train, axis=1)[:, np.newaxis]
 
 # build the LoRANN index
 print("Building the index...")
-index = Lorann.build(  # for other GPU backends, use Lorann(...) instead of Lorann.build(...)
+index = LorannIndex(
     data=train,
     n_clusters=n_clusters,
     global_dim=global_dim,
     euclidean=euclidean,
+    dtype=torch.float32
 )
-
-# we do a query before-hand for Jax to compile the search function
-_ = index.search(test, k, clusters_to_search, points_to_rerank)
+index.build()
 
 print("Querying the index...")
 start_time = time.time()

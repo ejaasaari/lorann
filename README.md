@@ -56,11 +56,11 @@ index = lorann.LorannIndex(
     euclidean=True,
 )
 
-index.build()
+index.build(verbose=False)
 
 k = 10
 approximate = index.search(X[-1], k, clusters_to_search=8, points_to_rerank=100)
-exact       = index.exact_search(X[-1], k))
+exact       = index.exact_search(X[-1], k)
 
 print('Approximate:', approximate)
 print('Exact:', exact)
@@ -92,15 +92,15 @@ For a complete example, see [examples/cpp](examples/cpp).
 
 ### GPU
 
-Hardware accelerators such as GPUs and TPUs can be used to speed up ANN search for queries that arrive in batches. GPU/TPU support in LoRANN is experimental and available only as a Python module. Currently, the GPU is used only for queries and not for index building.
+Hardware accelerators such as GPUs and TPUs can be used to speed up ANN search for queries that arrive in batches. GPU support in LoRANN is experimental and available only as a Python module. For index building, the GPU is currently used only partially.
 
-To use it, install the Python package and import `Lorann` from the desired submodule:
+Usage is similar to the CPU version, just with a different import:
 
 ```python
-from lorann_gpu.jax import Lorann
+from lorann_gpu import LorannIndex
 ```
 
-The available GPU submodules are `jax`, `torch`, `cupy`, and `mlx` with corresponding dependencies [Jax](https://jax.readthedocs.io/en/latest/), [PyTorch](https://pytorch.org/), [CuPy](https://cupy.dev/), or [MLX](https://github.com/ml-explore/mlx). The Jax implementation will probably be the fastest, at least on NVIDIA GPUs.
+The GPU submodule is implemented with and depends on [PyTorch](https://pytorch.org/), but a native CUDA implementation would provide better performance and will be available in the future. All index structures are by default saved as `torch.float32` to ensure numerical stability. However, for most embedding datasets, better performance can be obtained by passing `dtype=torch.float16` to the index constructor.
 
 For a complete example, see [examples/gpu_example.py](examples/gpu_example.py)
 
@@ -108,14 +108,15 @@ For a complete example, see [examples/gpu_example.py](examples/gpu_example.py)
 
 If you use the library in an academic context, please consider citing the following paper:
 
-> Jääsaari, E., Hyvönen, V., & Roos, T. (2024). LoRANN: Low-Rank Matrix Factorization for Approximate Nearest Neighbor Search. Advances in Neural Information Processing Systems, 37.
+> Jääsaari, E., Hyvönen, V., Roos, T. LoRANN: Low-Rank Matrix Factorization for Approximate Nearest Neighbor Search. Advances in Neural Information Processing Systems 37 (2024): 102121-102153.
 
 ~~~~
-@article{Jaasaari2024,
-  title={LoRANN: Low-Rank Matrix Factorization for Approximate Nearest Neighbor Search},
+@article{Jaasaari2024lorann,
+  title={{LoRANN}: Low-Rank Matrix Factorization for Approximate Nearest Neighbor Search},
   author={J{\"a}{\"a}saari, Elias and Hyv{\"o}nen, Ville and Roos, Teemu},
   journal={Advances in Neural Information Processing Systems},
   volume={37},
+  pages={102121--102153},
   year={2024}
 }
 ~~~~

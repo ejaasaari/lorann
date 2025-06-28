@@ -12,8 +12,6 @@
 #include "utils.h"
 
 #define EPS (1 / 1024.)
-#define PARTLY_REMAINING_FACTOR 0.15
-#define PENALTY_FACTOR 2.5
 
 namespace Lorann {
 
@@ -32,16 +30,18 @@ class KMeans {
    * algorithm. Defaults to false.
    * @param max_balance_diff The maximum allowed difference in cluster sizes for balanced
    * clustering. Used only if balanced = true. Defaults to 16.
-   * @param verbose Whether to enable verbose output. Defaults to false.
+   * @param penalty_factor Penalty factor for balanced clustering. Higher values can be used
+   * for faster clustering at the cost of clustering quality. Used only if balanced = True.
+   * Defaults to 1.4.
    */
   KMeans(int n_clusters, int iters = 25, bool euclidean = false, bool balanced = false,
-         int max_balance_diff = 16, bool verbose = false)
+         int max_balance_diff = 16, float penalty_factor = 1.4)
       : _iters(iters),
         _n_clusters(n_clusters),
         _euclidean(euclidean),
         _balanced(balanced),
         _max_balance_diff(max_balance_diff),
-        _verbose(verbose),
+        _penalty_factor(penalty_factor),
         _trained(false) {
     LORANN_ENSURE_POSITIVE(n_clusters);
     LORANN_ENSURE_POSITIVE(iters);
@@ -54,12 +54,14 @@ class KMeans {
    * @param data The data matrix
    * @param n Number of points (rows) in the data matrix
    * @param m Number of dimensions (cols) in the data matrix
+   * @param verbose Whether to use verbose output. Defaults to false.
    * @param num_threads Number of CPU threads to use (set to -1 to use all cores)
    * @return std::vector<std::vector<int>> Clustering assignments as a vector of
    * vectors where each vector contains the ids of the points assigned to the
    * corresponding cluster
    */
-  std::vector<std::vector<int>> train(const float *data, int n, int m, int num_threads = -1) {
+  std::vector<std::vector<int>> train(const float *data, const int n, const int m,
+                                      const bool verbose = false, int num_threads = -1) {
     LORANN_ENSURE_POSITIVE(n);
     LORANN_ENSURE_POSITIVE(m);
 
@@ -87,21 +89,25 @@ class KMeans {
     _centroids = sample_rows(train_mat, _n_clusters);
     postprocess_centroids();
 
+    if (verbose) {
+      std::cout << "Clustering..." << std::endl;
+    }
+
     for (int i = 0; i < _iters; ++i) {
       assign_clusters(train_mat, data_norms, num_threads);
       update_centroids(train_mat);
       split_clusters(train_mat);
       postprocess_centroids();
-      if (_verbose)
-        std::cout << "Iteration " << i + 1 << "/" << _iters << " | Cost : " << cost(train_mat)
+      if (verbose)
+        std::cout << "Iteration " << i + 1 << "/" << _iters << " | Cost: " << cost(train_mat)
                   << std::endl;
     }
 
     assign_clusters(train_mat, data_norms, num_threads);
 
     if (_balanced) {
-      if (_verbose) std::cout << "Balancing" << std::endl;
-      balance(train_mat, data_norms);
+      if (verbose) std::cout << "Balancing clusters..." << std::endl;
+      balance(train_mat, data_norms, verbose);
     }
 
     std::vector<std::vector<int>> res(_n_clusters);
@@ -335,7 +341,8 @@ class KMeans {
    * Rieke de Maeyer, Sami Sieranoja, and Pasi Fränti. Balanced k-means
    * revisited. Applied Computing and Intelligence, 3(2):145–179, 2023.
    */
-  void balance(const Eigen::Map<const RowMatrix> &train_mat, const Vector &data_norms) {
+  void balance(const Eigen::Map<const RowMatrix> &train_mat, const Vector &data_norms,
+               const bool verbose = false) {
     RowMatrix unnormalized_centroids = RowMatrix::Zero(_n_clusters, train_mat.cols());
     Vector centroid_norms = _centroids.rowwise().squaredNorm();
 
@@ -346,12 +353,11 @@ class KMeans {
     float n_min = _cluster_sizes.minCoeff();
     float n_max = _cluster_sizes.maxCoeff();
 
-    constexpr float partly_remaining_factor = PARTLY_REMAINING_FACTOR;
-    constexpr float penalty_factor = PENALTY_FACTOR;
-
     int iters = 0;
     float p_now = 0;
     float p_next = std::numeric_limits<float>::max();
+
+    float penalty_factor = _penalty_factor;
 
     while (n_max - n_min > 0.5 + _max_balance_diff) {
       for (int i = 0; i < train_mat.rows(); ++i) {
@@ -368,7 +374,7 @@ class KMeans {
           }
         }
 
-        _cluster_sizes[old] = _cluster_sizes[old] - 1 + partly_remaining_factor;
+        _cluster_sizes[old] -= 1;
 
         Vector dists;
         if (_euclidean) {
@@ -408,20 +414,20 @@ class KMeans {
           _centroids.row(minIndex).array() /= _centroids.row(minIndex).norm();
         }
 
-        _cluster_sizes[old] -= partly_remaining_factor;
         _assignments[i] = minIndex;
       }
 
       n_min = _cluster_sizes.minCoeff();
       n_max = _cluster_sizes.maxCoeff();
+
       p_now = penalty_factor * p_next;
       p_next = std::numeric_limits<float>::max();
 
       ++iters;
 
-      if (_verbose) {
-        std::cout << "Iteration " << iters << " | Cost : " << cost(train_mat)
-                  << " | Max diff : " << n_max - n_min << std::endl;
+      if (verbose) {
+        std::cout << "Iteration " << iters << " | Cost: " << cost(train_mat)
+                  << " | Max diff: " << n_max - n_min << std::endl;
       }
     }
   }
@@ -435,7 +441,7 @@ class KMeans {
   const bool _euclidean;
   const bool _balanced;
   const int _max_balance_diff;
-  const bool _verbose;
+  const float _penalty_factor;
   bool _trained;
 };
 

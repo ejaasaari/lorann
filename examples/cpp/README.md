@@ -4,6 +4,6 @@ Run `make prepare-data` to download the [data](https://fasttext.cc/docs/en/engli
 
 Run `make` to build the executable and run it using `./example`. The example will take a few minutes to run.
 
-Note that you can use e.g. 4-bit quantization by changing the type of the index to be `Lorann::Lorann<SQ4Quantizer>`.
+Note that you can use 8-bit quantization by changing the type of the index to be `Lorann::Lorann<SQ8Quantizer>`.
 
 The full C++ documentation is available [here](https://ejaasaari.github.io/lorann/cpp.html).

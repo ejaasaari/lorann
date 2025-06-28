@@ -149,10 +149,11 @@ class LorannFP : public LorannBase {
    * @param approximate Whether to turn on various approximations during index construction.
    * Defaults to true. Setting approximate to false slows down the index construction but can
    * slightly increase the recall, especially if no exact re-ranking is used in the query phase.
+   * @param verbose Whether to use verbose output for index construction. Defaults to false.
    * @param num_threads Number of CPU threads to use (set to -1 to use all cores)
    */
   void build(const float *query_data, const int query_n, const bool approximate = true,
-             int num_threads = -1) override {
+             const bool verbose = false, int num_threads = -1) override {
     LORANN_ENSURE_POSITIVE(query_n);
 
 #ifdef _OPENMP
@@ -165,7 +166,7 @@ class LorannFP : public LorannBase {
     Eigen::Map<const RowMatrix> query_mat(query_data, query_n, _dim);
 
     KMeans global_clustering(_n_clusters, KMEANS_ITERATIONS, _euclidean, _balanced,
-                             KMEANS_MAX_BALANCE_DIFF, 0);
+                             BALANCED_KMEANS_MAX_DIFF, BALANCED_KMEANS_PENALTY);
 
     std::vector<std::vector<int>> cluster_train_map;
     if (_global_dim < _dim) {
@@ -178,15 +179,16 @@ class LorannFP : public LorannBase {
         RowMatrix reduced_query_mat = query_mat * _global_transform;
         cluster_train_map = clustering(global_clustering, reduced_train_mat.data(),
                                        reduced_train_mat.rows(), reduced_query_mat.data(),
-                                       reduced_query_mat.rows(), approximate, num_threads);
+                                       reduced_query_mat.rows(), approximate, verbose, num_threads);
       } else {
         cluster_train_map = clustering(global_clustering, reduced_train_mat.data(),
                                        reduced_train_mat.rows(), reduced_train_mat.data(),
-                                       reduced_train_mat.rows(), approximate, num_threads);
+                                       reduced_train_mat.rows(), approximate, verbose, num_threads);
       }
     } else {
-      cluster_train_map = clustering(global_clustering, train_mat.data(), train_mat.rows(),
-                                     query_mat.data(), query_mat.rows(), approximate, num_threads);
+      cluster_train_map =
+          clustering(global_clustering, train_mat.data(), train_mat.rows(), query_mat.data(),
+                     query_mat.rows(), approximate, verbose, num_threads);
     }
 
     _centroid_mat = global_clustering.get_centroids();
@@ -204,6 +206,10 @@ class LorannFP : public LorannBase {
 #pragma omp parallel for num_threads(num_threads)
 #endif
     for (int i = 0; i < _n_clusters; ++i) {
+      if (verbose && i % 100 == 0 && i > 0) {
+        std::cout << "Cluster model build progress: " << i + 1 << "/" << _n_clusters << std::endl;
+      }
+
       if (_cluster_map[i].size() == 0) continue;
 
       if (_euclidean) {

@@ -52,15 +52,16 @@ static PyObject *KMeans_new(PyTypeObject *type, PyObject *args, PyObject *kwds) 
 }
 
 static int KMeans_init(KMeansIndex *self, PyObject *args, PyObject *kwds) {
-  int n_clusters, iters, euclidean, balanced, max_balance_diff, verbose;
+  int n_clusters, iters, euclidean, balanced, max_balance_diff;
+  float penalty_factor;
 
-  if (!PyArg_ParseTuple(args, "iiiiii", &n_clusters, &iters, &euclidean, &balanced,
-                        &max_balance_diff, &verbose)) {
+  if (!PyArg_ParseTuple(args, "iiiiif", &n_clusters, &iters, &euclidean, &balanced,
+                        &max_balance_diff, &penalty_factor)) {
     return -1;
   }
 
   self->index = std::make_unique<Lorann::KMeans>(n_clusters, iters, euclidean, balanced,
-                                                 max_balance_diff, verbose);
+                                                 max_balance_diff, penalty_factor);
   return 0;
 }
 
@@ -77,9 +78,10 @@ static void kmeans_dealloc(KMeansIndex *self) {
 
 static PyObject *kmeans_train(KMeansIndex *self, PyObject *args) {
   PyArrayObject *py_data;
-  int n, dim, n_threads;
+  int n, dim, verbose, n_threads;
 
-  if (!PyArg_ParseTuple(args, "O!iii", &PyArray_Type, &py_data, &n, &dim, &n_threads)) return NULL;
+  if (!PyArg_ParseTuple(args, "O!iiii", &PyArray_Type, &py_data, &n, &dim, &verbose, &n_threads))
+    return NULL;
 
 #ifdef _OPENMP
   if (n_threads <= 0) {
@@ -94,7 +96,7 @@ static PyObject *kmeans_train(KMeansIndex *self, PyObject *args) {
 
   std::vector<std::vector<int>> idxs;
   Py_BEGIN_ALLOW_THREADS;
-  idxs = self->index->train(data, n, dim, n_threads);
+  idxs = self->index->train(data, n, dim, verbose, n_threads);
   Py_END_ALLOW_THREADS;
 
   PyObject *list = PyList_New(idxs.size());
@@ -249,10 +251,12 @@ static PyObject *lorann_get_dissimilarity(LorannIndex *self, PyObject *args) {
 
 static PyObject *lorann_build(LorannIndex *self, PyObject *args) {
   int approximate = 1;
+  int verbose = 0;
   int n_threads = -1;
   PyArrayObject *Q = NULL;
 
-  if (!PyArg_ParseTuple(args, "|iiO!", &approximate, &n_threads, &PyArray_Type, &Q)) return NULL;
+  if (!PyArg_ParseTuple(args, "iii|O!", &approximate, &verbose, &n_threads, &PyArray_Type, &Q))
+    return NULL;
 
 #ifdef _OPENMP
   if (n_threads <= 0) {
@@ -264,11 +268,11 @@ static PyObject *lorann_build(LorannIndex *self, PyObject *args) {
     float *indata = reinterpret_cast<float *>(PyArray_DATA(Q));
     int n = PyArray_DIM(Q, 0);
     Py_BEGIN_ALLOW_THREADS;
-    self->index->build(indata, n, approximate, n_threads);
+    self->index->build(indata, n, approximate, verbose, n_threads);
     Py_END_ALLOW_THREADS;
   } else {
     Py_BEGIN_ALLOW_THREADS;
-    self->index->build(approximate, n_threads);
+    self->index->build(approximate, verbose, n_threads);
     Py_END_ALLOW_THREADS;
   }
 

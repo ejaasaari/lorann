@@ -8,7 +8,8 @@
 #include "utils.h"
 
 #define KMEANS_ITERATIONS 10
-#define KMEANS_MAX_BALANCE_DIFF 16
+#define BALANCED_KMEANS_MAX_DIFF 32
+#define BALANCED_KMEANS_PENALTY 1.4
 #define SAMPLED_POINTS_PER_CLUSTER 256
 #define GLOBAL_DIM_REDUCTION_SAMPLES 16384
 
@@ -102,14 +103,15 @@ class LorannBase {
    * @param approximate Whether to turn on various approximations during index construction.
    * Defaults to true. Setting approximate to false slows down the index construction but can
    * slightly increase the recall, especially if no exact re-ranking is used in the query phase.
+   * @param verbose Whether to use verbose output for index construction. Defaults to false.
    * @param num_threads Number of CPU threads to use (set to -1 to use all cores)
    */
-  void build(const bool approximate = true, int num_threads = -1) {
-    build(_data, _n_samples, approximate, num_threads);
+  void build(const bool approximate = true, const bool verbose = false, int num_threads = -1) {
+    build(_data, _n_samples, approximate, verbose, num_threads);
   }
 
   virtual void build(const float *query_data, const int query_n, const bool approximate,
-                     int num_threads) {}
+                     const bool verbose, int num_threads) {}
 
   virtual void search(const float *data, const int k, const int clusters_to_search,
                       const int points_to_rerank, int *idx_out, float *dist_out = nullptr) const {}
@@ -233,16 +235,18 @@ class LorannBase {
 
   std::vector<std::vector<int>> clustering(KMeans &global_clustering, const float *data,
                                            const int n, const float *train_data, const int train_n,
-                                           const bool approximate, int num_threads) {
+                                           const bool approximate, const bool verbose,
+                                           int num_threads) {
     const int to_sample = SAMPLED_POINTS_PER_CLUSTER * _n_clusters;
     if (!_balanced && approximate && to_sample < 0.5f * n) {
       /* sample points for k-means */
       const RowMatrix sampled =
           sample_rows(Eigen::Map<const RowMatrix>(data, n, _global_dim), to_sample);
-      (void)global_clustering.train(sampled.data(), sampled.rows(), sampled.cols(), num_threads);
+      (void)global_clustering.train(sampled.data(), sampled.rows(), sampled.cols(), verbose,
+                                    num_threads);
       _cluster_map = global_clustering.assign(data, n, 1);
     } else {
-      _cluster_map = global_clustering.train(data, n, _global_dim, num_threads);
+      _cluster_map = global_clustering.train(data, n, _global_dim, verbose, num_threads);
     }
 
     return global_clustering.assign(train_data, train_n, _train_size);

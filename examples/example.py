@@ -57,7 +57,7 @@ f = h5py.File("%s.hdf5" % dataset, "r")
 train = f["train"][:]
 test = f["test"][:]
 
-# if using angular distance, make sure all vectors have unit norm
+# if using cosine distance, make sure all vectors have unit norm
 if not euclidean:
     train[np.linalg.norm(train, axis=1) == 0] = 1.0 / np.sqrt(train.shape[1])
     train /= np.linalg.norm(train, axis=1)[:, np.newaxis]

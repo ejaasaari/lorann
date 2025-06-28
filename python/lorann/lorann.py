@@ -106,8 +106,10 @@ class LorannIndex(object):
     def build(
         self,
         approximate: bool = True,
-        training_queries: Optional[npt.NDArray[np.float32]] = None,
+        verbose: bool = False,
         n_threads: int = -1,
+        *,
+        training_queries: Optional[npt.NDArray[np.float32]] = None,
     ) -> None:
         """
         Builds the LoRANN index.
@@ -117,11 +119,12 @@ class LorannIndex(object):
                 Defaults to True. Setting approximate to False slows down the index construction but
                 can slightly increase the recall, especially if no exact re-ranking is used in the
                 query phase.
+            verbose: Whether to enable verbose output. Defaults to False.
+            n_threads: Number of CPU threads to use (set to -1 to use all cores)
             training_queries: An optional matrix of training queries used to build the index. Can be
                 useful in the out-of-distribution setting where the training and query distributions
                 differ. Ideally there should be at least as many training query points as there are
                 index points.
-            n_threads: Number of CPU threads to use (set to -1 to use all cores)
 
         Raises:
             RuntimeError: If the index has already been built.
@@ -131,7 +134,7 @@ class LorannIndex(object):
             raise RuntimeError("The index has already been built")
 
         if training_queries is None:
-            self.index.build(approximate, n_threads)
+            self.index.build(approximate, verbose, n_threads)
         else:
             _, dim = _check_data_matrix(training_queries)
             if dim != self.dim:
@@ -139,7 +142,7 @@ class LorannIndex(object):
                     "The training query matrix should have the same number of columns as the data matrix"
                 )
 
-            self.index.build(approximate, n_threads, training_queries)
+            self.index.build(approximate, verbose, n_threads, training_queries)
 
         self.built = True
 
@@ -232,13 +235,14 @@ class LorannIndex(object):
             fname: The filename to save the index to.
 
         Raises:
+            RuntimeError: If trying to save before building the index.
             OSError: If saving to the specified file fails.
 
         Returns:
             None
         """
         if not self.built:
-            raise RuntimeError("Cannot save before building index")
+            raise RuntimeError("Cannot save an index that has not been built")
 
         self.index.save(fname)
 
@@ -327,7 +331,7 @@ class KMeans(object):
         euclidean: bool = False,
         balanced: bool = False,
         max_balance_diff: int = 16,
-        verbose: bool = False,
+        penalty_factor: float = 1.4,
     ) -> None:
         """
         Initializes a KMeans object. The initializer does not perform the actual clustering.
@@ -341,7 +345,9 @@ class KMeans(object):
                 algorithm. Defaults to False.
             max_balance_diff: The maximum allowed difference in cluster sizes for balanced
                 clustering. Used only if balanced = True. Defaults to 16.
-            verbose: Whether to enable verbose output. Defaults to False.
+            penalty_factor: Penalty factor for balanced clustering. Higher values can be used for
+                faster clustering at the cost of clustering quality. Used only if balanced = True.
+                Defaults to 1.4.
 
         Returns:
             None
@@ -349,20 +355,27 @@ class KMeans(object):
         assert n_clusters > 0, "n_clusters must be positive"
         assert iters > 0, "iters must be positive"
         assert max_balance_diff > 0, "max_balance_diff must be positive"
+        assert penalty_factor > 1, "penalty_factor must be greater than 1"
 
         self.index = lorannlib.KMeans(
-            n_clusters, iters, euclidean, balanced, max_balance_diff, verbose
+            n_clusters,
+            iters,
+            euclidean,
+            balanced,
+            max_balance_diff,
+            penalty_factor,
         )
         self.trained = False
 
     def train(
-        self, data: npt.NDArray[np.float32], n_threads: int = -1
+        self, data: npt.NDArray[np.float32], verbose: bool = False, n_threads: int = -1
     ) -> List[npt.NDArray[np.int32]]:
         """
         Performs the clustering on the provided data.
 
         Args:
             data: The data as an $n \\times d$ numpy array.
+            verbose: Whether to enable verbose output. Defaults to False.
             n_threads: Number of CPU threads to use (set to -1 to use all cores)
 
         Raises:
@@ -387,7 +400,7 @@ class KMeans(object):
             raise ValueError("Data matrix contains NaN")
 
         self.trained = True
-        return self.index.train(data, n_samples, dim, n_threads)
+        return self.index.train(data, n_samples, dim, verbose, n_threads)
 
     def assign(self, data: npt.NDArray[np.float32], k: int) -> List[npt.NDArray[np.int32]]:
         """
