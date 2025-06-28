@@ -1,7 +1,8 @@
-@article{Jaasaari2024,
-  title={LoRANN: Low-Rank Matrix Factorization for Approximate Nearest Neighbor Search},
+@article{Jaasaari2024lorann,
+  title={{LoRANN}: Low-Rank Matrix Factorization for Approximate Nearest Neighbor Search},
   author={J{\"a}{\"a}saari, Elias and Hyv{\"o}nen, Ville and Roos, Teemu},
   journal={Advances in Neural Information Processing Systems},
   volume={37},
+  pages={102121--102153},
   year={2024}
 }
