@@ -4,12 +4,12 @@ on:
   push:
     paths:
       - 'setup.py'
-      - 'src/**'
+      - 'lorann/**'
       - 'python/**'
   pull_request:
     paths:
       - 'setup.py'
-      - 'src/**'
+      - 'lorann/**'
       - 'python/**'
 
 jobs:
