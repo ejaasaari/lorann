@@ -12,7 +12,7 @@ torch.set_float32_matmul_precision("high")
 def run_kmeans(
     train,
     n_clusters,
-    euclidean=False,
+    distance=lorann.IP,
     balanced=True,
     max_balance_diff=32,
     penalty_factor=2.0,
@@ -21,7 +21,7 @@ def run_kmeans(
     kmeans = lorann.KMeans(
         n_clusters=n_clusters,
         iters=10,
-        euclidean=euclidean,
+        distance=distance,
         balanced=balanced,
         max_balance_diff=max_balance_diff,
         penalty_factor=penalty_factor,
@@ -54,7 +54,7 @@ class LorannIndex:
         global_dim: int,
         rank: int = 24,
         train_size: int = 5,
-        euclidean: bool = False,
+        distance: int = lorann.IP,
         penalty_factor: float = 2.0,
         *,
         device: Optional[torch.device | str] = None,
@@ -75,8 +75,7 @@ class LorannIndex:
             train_size: Number of nearby clusters ($w$) used for training the reduced-rank
                 regression models. Defaults to 5, but lower values can be used if
                 $m \\gtrsim 500 000$ to speed up the index construction.
-            euclidean: Whether to use Euclidean distance instead of (negative) inner product as the
-                dissimilarity measure. Defaults to False.
+            distance: The distance measure to use. Either IP or L2. Defaults to IP.
             penalty_factor: Penalty factor for balanced clustering. Higher values can be used for
                 faster clustering at the cost of clustering quality. Used only if balanced = True.
                 Defaults to 2.0.
@@ -97,7 +96,7 @@ class LorannIndex:
         self.n_clusters = n_clusters
         self.rank = rank
         self.train_size = train_size
-        self.euclidean = euclidean
+        self.distance = distance
         self.penalty_factor = penalty_factor
 
         _, dim = data_t.shape
@@ -156,7 +155,7 @@ class LorannIndex:
             kmeans, centroids, self.cluster_map = run_kmeans(
                 reduced_train_cpu,
                 self.n_clusters,
-                self.euclidean,
+                self.distance,
                 balanced=True,
                 penalty_factor=self.penalty_factor,
                 verbose=verbose,
@@ -172,7 +171,7 @@ class LorannIndex:
             kmeans, centroids, self.cluster_map = run_kmeans(
                 data_cpu,
                 self.n_clusters,
-                self.euclidean,
+                self.distance,
                 balanced=True,
                 penalty_factor=self.penalty_factor,
                 verbose=verbose,
@@ -183,7 +182,7 @@ class LorannIndex:
         self.centroids = torch.as_tensor(centroids, dtype=self.dtype, device=self.device)
         self.max_cluster_size: int = max(len(c) for c in self.cluster_map)
 
-        if self.euclidean:
+        if self.distance == lorann.L2:
             self.global_centroid_norms: Tensor = (torch.linalg.norm(self.centroids, dim=1) ** 2).to(
                 self.dtype
             )
@@ -263,7 +262,7 @@ class LorannIndex:
         self.built = True
 
     def _search_impl(self, q, k, clusters_to_search, points_to_rerank):
-        if self.euclidean:
+        if self.distance == lorann.L2:
             q = -2 * q
         else:
             q = -q
@@ -278,14 +277,14 @@ class LorannIndex:
             transformed_query = q
 
         d = transformed_query @ self.centroids.T
-        if self.euclidean:
+        if self.distance == lorann.L2:
             d += self.global_centroid_norms
 
         _, I = torch.topk(d, clusters_to_search, largest=False)
 
         transformed_query = transformed_query.reshape((batch_size, 1, 1, -1))
         approx_dists = (transformed_query @ self.A[I] @ self.B[I]).reshape(estimate_size)
-        if self.euclidean:
+        if self.distance == lorann.L2:
             approx_dists += self.cluster_norms[I].reshape(estimate_size)
         idx = self.cluster_map[I].reshape(estimate_size)
 
@@ -297,7 +296,7 @@ class LorannIndex:
             return cs
 
         final_dists = (self.data[cs] @ q[:, :, None]).reshape((batch_size, n_selected))
-        if self.euclidean:
+        if self.distance == lorann.L2:
             final_dists += self.data_norms[cs]
 
         _, idx_final = torch.topk(final_dists, min(k, n_selected), largest=False)
@@ -366,14 +365,14 @@ class LorannIndex:
         return results
 
     def _exact_search_impl(self, q, k):
-        if self.euclidean:
+        if self.distance == lorann.L2:
             q = -2 * q
         else:
             q = -q
 
         batch_size = q.shape[0]
         dists = (self.data @ q[:, :, None]).reshape((batch_size, len(self.data)))
-        if self.euclidean:
+        if self.distance == lorann.L2:
             dists += self.data_norms
 
         _, idx = torch.topk(dists, min(k, len(self.data)), largest=False)
@@ -450,7 +449,7 @@ class LorannIndex:
             "n_clusters": self.n_clusters,
             "rank": self.rank,
             "train_size": self.train_size,
-            "euclidean": self.euclidean,
+            "distance": self.distance,
             "penalty_factor": self.penalty_factor,
             "global_dim": self.global_dim,
             "dim": self.dim,
@@ -466,7 +465,7 @@ class LorannIndex:
         if hasattr(self, "global_transform") and self.global_transform is not None:
             state_dict["global_transform"] = self.global_transform
 
-        if self.euclidean:
+        if self.distance == lorann.L2:
             state_dict["global_centroid_norms"] = self.global_centroid_norms
             state_dict["data_norms"] = self.data_norms
             state_dict["cluster_norms"] = self.cluster_norms
@@ -506,7 +505,7 @@ class LorannIndex:
         global_dim = state_dict["global_dim"]
         rank = state_dict["rank"]
         train_size = state_dict["train_size"]
-        euclidean = state_dict["euclidean"]
+        distance = state_dict["distance"]
         penalty_factor = state_dict["penalty_factor"]
         dtype = state_dict["dtype"]
 
@@ -516,7 +515,7 @@ class LorannIndex:
             global_dim=global_dim,
             rank=rank,
             train_size=train_size,
-            euclidean=euclidean,
+            distance=distance,
             penalty_factor=penalty_factor,
             device=device,
             dtype=dtype,
@@ -535,7 +534,7 @@ class LorannIndex:
         else:
             instance.global_transform = None
 
-        if instance.euclidean:
+        if instance.distance == lorann.L2:
             instance.global_centroid_norms = state_dict["global_centroid_norms"]
             instance.data_norms = state_dict["data_norms"]
             instance.cluster_norms = state_dict["cluster_norms"]
@@ -550,18 +549,3 @@ class LorannIndex:
             )
 
         return instance
-
-    def get_vector(self, idx: int):
-        """
-        Retrieves a vector from the index by its index.
-
-        Args:
-            idx: The index of the vector to retrieve.
-
-        Returns:
-            The vector at the specified index.
-
-        Raises:
-            IndexError: If the index is out of bounds.
-        """
-        return self.data[idx]

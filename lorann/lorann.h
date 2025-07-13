@@ -8,6 +8,7 @@
 
 #include <Eigen/Dense>
 #include <cstring>
+#include <memory>
 #include <stdexcept>
 #include <vector>
 
@@ -23,9 +24,11 @@
 
 namespace Lorann {
 
-template <typename DataQuantizer = SQ8Quantizer, typename QueryQuantizer = SQ8Quantizer>
-class Lorann : public LorannBase {
+template <typename T, typename DataQuantizer = SQ8Quantizer, typename QueryQuantizer = SQ8Quantizer>
+class Lorann : public LorannBase<T> {
  public:
+  using LorannBase<T>::build;
+
   /**
    * @brief Construct a new Lorann object
    *
@@ -46,13 +49,13 @@ class Lorann : public LorannBase {
    * @param train_size Number of nearby clusters ($w$) used for training the reduced-rank regression
    * models. Defaults to 5, but lower values can be used if $m \\gtrsim 500 000$ to speed up the
    * index construction.
-   * @param euclidean Whether to use Euclidean distance instead of (negative) inner product as the
-   * dissimilarity measure. Defaults to false.
+   * @param distance The distance measure to use. Either IP or L2. Defaults to IP.
    * @param balanced Whether to use balanced clustering. Defaults to false.
    */
-  explicit Lorann(float *data, int m, int d, int n_clusters, int global_dim, int rank = 32,
-                  int train_size = 5, bool euclidean = false, bool balanced = false)
-      : LorannBase(data, m, d, n_clusters, global_dim, rank + 1, train_size, euclidean, balanced) {
+  explicit Lorann(T *data, int m, int d, int n_clusters, int global_dim, int rank = 32,
+                  int train_size = 5, Distance distance = IP, bool balanced = false)
+      : LorannBase<T>(data, m, d, n_clusters, global_dim, rank + 1, train_size, distance,
+                      balanced) {
     if (!(rank == 16 || rank == 32 || rank == 64)) {
       throw std::invalid_argument("rank must be 16, 32, or 64");
     }
@@ -74,14 +77,14 @@ class Lorann : public LorannBase {
    * @param idx_out The index output array of length k
    * @param dist_out The (optional) distance output array of length k
    */
-  void search(const float *data, const int k, const int clusters_to_search,
-              const int points_to_rerank, int *idx_out, float *dist_out = nullptr) const override {
+  void search(const T *data, const int k, const int clusters_to_search, const int points_to_rerank,
+              int *idx_out, float *dist_out = nullptr) const override {
     ColVector scaled_query;
     ColVector transformed_query;
-    Eigen::Map<const Eigen::VectorXf> data_vec(data, _dim);
+    ColVector data_vec = detail::Traits<T>::to_float_vector(data, _dim);
 
-    if (_euclidean) {
-      scaled_query = -2. * data_vec;
+    if (_distance == L2) {
+      scaled_query = -2 * data_vec;
     } else {
       scaled_query = -data_vec;
     }
@@ -144,7 +147,7 @@ class Lorann : public LorannBase {
                                             principal_axis_tmp, compensation_tmp,
                                             &all_distances[curr]);
 
-      if (_euclidean)
+      if (_distance == L2)
         add_inplace(_cluster_norms[cluster].data(), &all_distances[curr],
                     _cluster_norms[cluster].size());
 
@@ -152,11 +155,9 @@ class Lorann : public LorannBase {
       curr += sz;
     }
 
-    select_final(_euclidean ? data : scaled_query.data(), k, points_to_rerank, total_pts,
-                 all_idxs.data(), all_distances.data(), idx_out, dist_out);
+    select_final(data, _distance == L2 ? data_vec.data() : scaled_query.data(), k, points_to_rerank,
+                 total_pts, all_idxs.data(), all_distances.data(), idx_out, dist_out);
   }
-
-  using LorannBase::build;
 
   /**
    * @brief Build the index.
@@ -172,7 +173,7 @@ class Lorann : public LorannBase {
    * @param verbose Whether to use verbose output for index construction. Defaults to false.
    * @param num_threads Number of CPU threads to use (set to -1 to use all cores)
    */
-  void build(const float *query_data, const int query_n, const bool approximate = true,
+  void build(const T *query_data, const int query_n, const bool approximate = true,
              const bool verbose = false, int num_threads = -1) override {
     LORANN_ENSURE_POSITIVE(query_n);
 
@@ -182,11 +183,11 @@ class Lorann : public LorannBase {
     }
 #endif
 
-    Eigen::Map<RowMatrix> train_mat(_data, _n_samples, _dim);
-    Eigen::Map<const RowMatrix> query_mat(query_data, query_n, _dim);
+    MappedMatrix train_mat = detail::Traits<T>::to_float_matrix(_data, _n_samples, _dim);
+    MappedMatrix query_mat = detail::Traits<T>::to_float_matrix(query_data, query_n, _dim);
 
     /* compute dimensionality reduction matrix */
-    RowMatrix query_sample = sample_rows(query_mat, GLOBAL_DIM_REDUCTION_SAMPLES);
+    RowMatrix query_sample = sample_rows(query_mat.view, GLOBAL_DIM_REDUCTION_SAMPLES);
     Eigen::MatrixXf global_dim_reduction =
         compute_principal_components(query_sample.transpose() * query_sample, _global_dim);
 
@@ -198,22 +199,22 @@ class Lorann : public LorannBase {
     rotation.block(1, 1, _global_dim - 1, _global_dim - 1) = sub_rotation;
     _global_transform = global_dim_reduction * rotation;
 
-    RowMatrix reduced_train_mat = train_mat * global_dim_reduction;
+    RowMatrix reduced_train_mat = train_mat.view * global_dim_reduction;
 
     /* clustering */
-    KMeans global_clustering(_n_clusters, KMEANS_ITERATIONS, _euclidean, _balanced,
+    KMeans global_clustering(_n_clusters, KMEANS_ITERATIONS, _distance, _balanced,
                              BALANCED_KMEANS_MAX_DIFF, BALANCED_KMEANS_PENALTY);
 
     std::vector<std::vector<int>> cluster_train_map;
-    if (query_mat.data() != train_mat.data()) {
-      RowMatrix reduced_query_mat = query_mat * global_dim_reduction;
-      cluster_train_map =
-          clustering(global_clustering, reduced_train_mat.data(), reduced_train_mat.rows(),
-                     reduced_query_mat.data(), reduced_query_mat.rows(), approximate, verbose, num_threads);
+    if (query_mat.view.data() != train_mat.view.data()) {
+      RowMatrix reduced_query_mat = query_mat.view * global_dim_reduction;
+      cluster_train_map = clustering(global_clustering, reduced_train_mat.data(),
+                                     reduced_train_mat.rows(), reduced_query_mat.data(),
+                                     reduced_query_mat.rows(), approximate, verbose, num_threads);
     } else {
-      cluster_train_map =
-          clustering(global_clustering, reduced_train_mat.data(), reduced_train_mat.rows(),
-                     reduced_train_mat.data(), reduced_train_mat.rows(), approximate, verbose, num_threads);
+      cluster_train_map = clustering(global_clustering, reduced_train_mat.data(),
+                                     reduced_train_mat.rows(), reduced_train_mat.data(),
+                                     reduced_train_mat.rows(), approximate, verbose, num_threads);
     }
 
     /* rotate the cluster centroid matrix */
@@ -222,9 +223,9 @@ class Lorann : public LorannBase {
     Vector centroid_fix = centroid_mat_rotated.row(0);
     centroid_mat_rotated.row(0).array() *= 0;
 
-    if (_euclidean) {
+    if (_distance == L2) {
       _global_centroid_norms = centroid_mat.rowwise().squaredNorm();
-      _data_norms = train_mat.rowwise().squaredNorm();
+      _data_norms = train_mat.view.rowwise().squaredNorm();
     }
 
     /* quantize the cluster centroids */
@@ -240,7 +241,7 @@ class Lorann : public LorannBase {
     _A_corrections.resize(_n_clusters);
     _B_corrections.resize(_n_clusters);
 
-    if (_euclidean) {
+    if (_distance == L2) {
       _cluster_norms.resize(_n_clusters);
     }
 
@@ -254,15 +255,15 @@ class Lorann : public LorannBase {
 
       if (_cluster_map[i].size() == 0) continue;
 
-      if (_euclidean) {
+      if (_distance == L2) {
         _cluster_norms[i] = _data_norms(_cluster_map[i]);
       }
 
-      RowMatrix pts = train_mat(_cluster_map[i], Eigen::placeholders::all);
+      RowMatrix pts = train_mat.view(_cluster_map[i], Eigen::placeholders::all);
       RowMatrix Q;
 
       if (cluster_train_map[i].size() >= _cluster_map[i].size()) {
-        Q = query_mat(cluster_train_map[i], Eigen::placeholders::all);
+        Q = query_mat.view(cluster_train_map[i], Eigen::placeholders::all);
       } else {
         Q = pts;
       }
@@ -328,7 +329,7 @@ class Lorann : public LorannBase {
     quant_query.quantized_matvec_product_A(_centroids_quantized, query_quantized,
                                            _centroid_correction, quantization_factor, correction,
                                            compensation, dists.data());
-    if (_euclidean)
+    if (_distance == L2)
       add_inplace(_global_centroid_norms.data(), dists.data(), _global_centroid_norms.size());
     select_k(k, out, _centroids_quantized.cols(), NULL, dists.data());
   }
@@ -337,13 +338,13 @@ class Lorann : public LorannBase {
 
   template <class Archive>
   void save(Archive &ar) const {
-    ar(cereal::base_class<LorannBase>(this), _global_transform, _centroids_quantized,
+    ar(cereal::base_class<LorannBase<T>>(this), _global_transform, _centroids_quantized,
        _centroid_correction, _A, _B, _A_corrections, _B_corrections, _cluster_norms);
   }
 
   template <class Archive>
   void load(Archive &ar) {
-    ar(cereal::base_class<LorannBase>(this), _global_transform, _centroids_quantized,
+    ar(cereal::base_class<LorannBase<T>>(this), _global_transform, _centroids_quantized,
        _centroid_correction, _A, _B, _A_corrections, _B_corrections, _cluster_norms);
   }
 
@@ -359,23 +360,50 @@ class Lorann : public LorannBase {
   std::vector<Vector> _A_corrections;
   std::vector<Vector> _B_corrections;
   std::vector<Vector> _cluster_norms;
+
+  using LorannBase<T>::clustering;
+  using LorannBase<T>::select_final;
+
+  using LorannBase<T>::_data;
+  using LorannBase<T>::_n_samples;
+  using LorannBase<T>::_dim;
+  using LorannBase<T>::_n_clusters;
+  using LorannBase<T>::_global_dim;
+  using LorannBase<T>::_max_rank;
+  using LorannBase<T>::_train_size;
+  using LorannBase<T>::_distance;
+  using LorannBase<T>::_balanced;
+  using LorannBase<T>::_cluster_map;
+  using LorannBase<T>::_global_centroid_norms;
+  using LorannBase<T>::_cluster_sizes;
+  using LorannBase<T>::_data_norms;
 };
 
 }  // namespace Lorann
 
-typedef Lorann::Lorann<Lorann::SQ4Quantizer, Lorann::SQ4Quantizer> lorann_sq4sq4;
-typedef Lorann::Lorann<Lorann::SQ4Quantizer, Lorann::SQ8Quantizer> lorann_sq4sq8;
-typedef Lorann::Lorann<Lorann::SQ8Quantizer, Lorann::SQ4Quantizer> lorann_sq8sq4;
-typedef Lorann::Lorann<Lorann::SQ8Quantizer, Lorann::SQ8Quantizer> lorann_sq8sq8;
+#define REGISTER_LORANN_TYPES(DataType, TypePrefix)                                       \
+  typedef Lorann::Lorann<DataType, Lorann::SQ4Quantizer, Lorann::SQ4Quantizer>            \
+      TypePrefix##_sq4sq4;                                                                \
+  typedef Lorann::Lorann<DataType, Lorann::SQ4Quantizer, Lorann::SQ8Quantizer>            \
+      TypePrefix##_sq4sq8;                                                                \
+  typedef Lorann::Lorann<DataType, Lorann::SQ8Quantizer, Lorann::SQ4Quantizer>            \
+      TypePrefix##_sq8sq4;                                                                \
+  typedef Lorann::Lorann<DataType, Lorann::SQ8Quantizer, Lorann::SQ8Quantizer>            \
+      TypePrefix##_sq8sq8;                                                                \
+                                                                                          \
+  CEREAL_REGISTER_TYPE(TypePrefix##_sq4sq4)                                               \
+  CEREAL_REGISTER_POLYMORPHIC_RELATION(Lorann::LorannBase<DataType>, TypePrefix##_sq4sq4) \
+                                                                                          \
+  CEREAL_REGISTER_TYPE(TypePrefix##_sq4sq8)                                               \
+  CEREAL_REGISTER_POLYMORPHIC_RELATION(Lorann::LorannBase<DataType>, TypePrefix##_sq4sq8) \
+                                                                                          \
+  CEREAL_REGISTER_TYPE(TypePrefix##_sq8sq4)                                               \
+  CEREAL_REGISTER_POLYMORPHIC_RELATION(Lorann::LorannBase<DataType>, TypePrefix##_sq8sq4) \
+                                                                                          \
+  CEREAL_REGISTER_TYPE(TypePrefix##_sq8sq8)                                               \
+  CEREAL_REGISTER_POLYMORPHIC_RELATION(Lorann::LorannBase<DataType>, TypePrefix##_sq8sq8)
 
-CEREAL_REGISTER_TYPE(lorann_sq4sq4)
-CEREAL_REGISTER_POLYMORPHIC_RELATION(Lorann::LorannBase, lorann_sq4sq4)
-
-CEREAL_REGISTER_TYPE(lorann_sq4sq8)
-CEREAL_REGISTER_POLYMORPHIC_RELATION(Lorann::LorannBase, lorann_sq4sq8)
-
-CEREAL_REGISTER_TYPE(lorann_sq8sq4)
-CEREAL_REGISTER_POLYMORPHIC_RELATION(Lorann::LorannBase, lorann_sq8sq4)
-
-CEREAL_REGISTER_TYPE(lorann_sq8sq8)
-CEREAL_REGISTER_POLYMORPHIC_RELATION(Lorann::LorannBase, lorann_sq8sq8)
+REGISTER_LORANN_TYPES(float, lorann_fp32)
+REGISTER_LORANN_TYPES(_Float16, lorann_fp16)
+REGISTER_LORANN_TYPES(uint8_t, lorann_u8)
+REGISTER_LORANN_TYPES(Lorann::BinaryType, lorann_b)

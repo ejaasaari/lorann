@@ -21,8 +21,11 @@
 
 namespace Lorann {
 
-class LorannFP : public LorannBase {
+template <typename T>
+class LorannFP : public LorannBase<T> {
  public:
+  using LorannBase<T>::build;
+
   /**
    * @brief Construct a new LorannFP object
    *
@@ -42,13 +45,12 @@ class LorannFP : public LorannBase {
    * @param train_size Number of nearby clusters ($w$) used for training the reduced-rank regression
    * models. Defaults to 5, but lower values can be used if $m \\gtrsim 500 000$ to speed up the
    * index construction.
-   * @param euclidean Whether to use Euclidean distance instead of (negative) inner product as the
-   * dissimilarity measure. Defaults to false.
+   * @param distance The distance measure to use. Either IP or L2. Defaults to IP.
    * @param balanced Whether to use balanced clustering. Defaults to false.
    */
-  explicit LorannFP(float *data, int m, int d, int n_clusters, int global_dim, int rank = 24,
-                    int train_size = 5, bool euclidean = false, bool balanced = false)
-      : LorannBase(data, m, d, n_clusters, global_dim, rank, train_size, euclidean, balanced) {}
+  explicit LorannFP(T *data, int m, int d, int n_clusters, int global_dim, int rank = 24,
+                    int train_size = 5, Distance distance = IP, bool balanced = false)
+      : LorannBase<T>(data, m, d, n_clusters, global_dim, rank, train_size, distance, balanced) {}
 
   /**
    * @brief Query the index.
@@ -62,13 +64,13 @@ class LorannFP : public LorannBase {
    * @param idx_out The index output array of length k
    * @param dist_out The (optional) distance output array of length k
    */
-  void search(const float *data, const int k, const int clusters_to_search,
-              const int points_to_rerank, int *idx_out, float *dist_out = nullptr) const override {
+  void search(const T *data, const int k, const int clusters_to_search, const int points_to_rerank,
+              int *idx_out, float *dist_out = nullptr) const override {
     Vector scaled_query;
     Vector transformed_query;
+    ColVector data_vec = detail::Traits<T>::to_float_vector(data, _dim);
 
-    Eigen::Map<const ColVector> data_vec(data, _dim);
-    if (_euclidean) {
+    if (_distance == L2) {
       scaled_query = -2. * data_vec;
     } else {
       scaled_query = -data_vec;
@@ -109,7 +111,7 @@ class LorannFP : public LorannBase {
       const RowMatrix &B = _B[cluster];
 
 #if defined(LORANN_USE_MKL) || defined(LORANN_USE_OPENBLAS)
-      if (_euclidean) {
+      if (_distance == L2) {
         std::memcpy(&all_distances[curr], _cluster_norms[cluster].data(), sizeof(float) * sz);
       } else {
         std::memset(&all_distances[curr], 0, sizeof(float) * sz);
@@ -122,7 +124,7 @@ class LorannFP : public LorannBase {
 #else
       Eigen::Map<Vector> resvec(&all_distances[curr], sz);
 
-      if (_euclidean)
+      if (_distance == L2)
         resvec = (transformed_query * A) * B + _cluster_norms[cluster];
       else
         resvec = (transformed_query * A) * B;
@@ -132,11 +134,9 @@ class LorannFP : public LorannBase {
       curr += sz;
     }
 
-    select_final(_euclidean ? data : scaled_query.data(), k, points_to_rerank, total_pts,
-                 all_idxs.data(), all_distances.data(), idx_out, dist_out);
+    select_final(data, _distance == L2 ? data_vec.data() : scaled_query.data(), k, points_to_rerank,
+                 total_pts, all_idxs.data(), all_distances.data(), idx_out, dist_out);
   }
-
-  using LorannBase::build;
 
   /**
    * @brief Build the index.
@@ -152,7 +152,7 @@ class LorannFP : public LorannBase {
    * @param verbose Whether to use verbose output for index construction. Defaults to false.
    * @param num_threads Number of CPU threads to use (set to -1 to use all cores)
    */
-  void build(const float *query_data, const int query_n, const bool approximate = true,
+  void build(const T *query_data, const int query_n, const bool approximate = true,
              const bool verbose = false, int num_threads = -1) override {
     LORANN_ENSURE_POSITIVE(query_n);
 
@@ -162,21 +162,21 @@ class LorannFP : public LorannBase {
     }
 #endif
 
-    Eigen::Map<RowMatrix> train_mat(_data, _n_samples, _dim);
-    Eigen::Map<const RowMatrix> query_mat(query_data, query_n, _dim);
+    MappedMatrix train_mat = detail::Traits<T>::to_float_matrix(_data, _n_samples, _dim);
+    MappedMatrix query_mat = detail::Traits<T>::to_float_matrix(query_data, query_n, _dim);
 
-    KMeans global_clustering(_n_clusters, KMEANS_ITERATIONS, _euclidean, _balanced,
+    KMeans global_clustering(_n_clusters, KMEANS_ITERATIONS, _distance, _balanced,
                              BALANCED_KMEANS_MAX_DIFF, BALANCED_KMEANS_PENALTY);
 
     std::vector<std::vector<int>> cluster_train_map;
     if (_global_dim < _dim) {
-      RowMatrix query_sample = sample_rows(query_mat, GLOBAL_DIM_REDUCTION_SAMPLES);
+      RowMatrix query_sample = sample_rows(query_mat.view, GLOBAL_DIM_REDUCTION_SAMPLES);
       _global_transform =
           compute_principal_components(query_sample.transpose() * query_sample, _global_dim);
-      RowMatrix reduced_train_mat = train_mat * _global_transform;
+      RowMatrix reduced_train_mat = train_mat.view * _global_transform;
 
-      if (query_mat.data() != train_mat.data()) {
-        RowMatrix reduced_query_mat = query_mat * _global_transform;
+      if (query_mat.view.data() != train_mat.view.data()) {
+        RowMatrix reduced_query_mat = query_mat.view * _global_transform;
         cluster_train_map = clustering(global_clustering, reduced_train_mat.data(),
                                        reduced_train_mat.rows(), reduced_query_mat.data(),
                                        reduced_query_mat.rows(), approximate, verbose, num_threads);
@@ -186,16 +186,16 @@ class LorannFP : public LorannBase {
                                        reduced_train_mat.rows(), approximate, verbose, num_threads);
       }
     } else {
-      cluster_train_map =
-          clustering(global_clustering, train_mat.data(), train_mat.rows(), query_mat.data(),
-                     query_mat.rows(), approximate, verbose, num_threads);
+      cluster_train_map = clustering(global_clustering, train_mat.view.data(),
+                                     train_mat.view.rows(), query_mat.view.data(),
+                                     query_mat.view.rows(), approximate, verbose, num_threads);
     }
 
     _centroid_mat = global_clustering.get_centroids();
 
-    if (_euclidean) {
+    if (_distance == L2) {
       _global_centroid_norms = _centroid_mat.rowwise().squaredNorm();
-      _data_norms = train_mat.rowwise().squaredNorm();
+      _data_norms = train_mat.view.rowwise().squaredNorm();
       _cluster_norms.resize(_n_clusters);
     }
 
@@ -212,15 +212,15 @@ class LorannFP : public LorannBase {
 
       if (_cluster_map[i].size() == 0) continue;
 
-      if (_euclidean) {
+      if (_distance == L2) {
         _cluster_norms[i] = _data_norms(_cluster_map[i]);
       }
 
-      RowMatrix pts = train_mat(_cluster_map[i], Eigen::placeholders::all);
+      RowMatrix pts = train_mat.view(_cluster_map[i], Eigen::placeholders::all);
       RowMatrix Q;
 
       if (cluster_train_map[i].size() >= _cluster_map[i].size()) {
-        Q = query_mat(cluster_train_map[i], Eigen::placeholders::all);
+        Q = query_mat.view(cluster_train_map[i], Eigen::placeholders::all);
       } else {
         Q = pts;
       }
@@ -260,10 +260,10 @@ class LorannFP : public LorannBase {
 
     const float *y = _centroid_mat.data();
     for (int i = 0; i < _n_clusters; ++i, y += _global_dim) {
-      d[i] = dot_product(x, y, _global_dim);
+      d[i] = detail::Traits<float>::dot_product(x, y, _global_dim);
     }
 
-    if (_euclidean) d += _global_centroid_norms;
+    if (_distance == L2) d += _global_centroid_norms;
 
     select_k(k, out, d.size(), NULL, d.data());
   }
@@ -272,13 +272,13 @@ class LorannFP : public LorannBase {
 
   template <class Archive>
   void save(Archive &ar) const {
-    ar(cereal::base_class<LorannBase>(this), _global_transform, _centroid_mat, _A, _B,
+    ar(cereal::base_class<LorannBase<T>>(this), _global_transform, _centroid_mat, _A, _B,
        _cluster_norms);
   }
 
   template <class Archive>
   void load(Archive &ar) {
-    ar(cereal::base_class<LorannBase>(this), _global_transform, _centroid_mat, _A, _B,
+    ar(cereal::base_class<LorannBase<T>>(this), _global_transform, _centroid_mat, _A, _B,
        _cluster_norms);
   }
 
@@ -288,9 +288,32 @@ class LorannFP : public LorannBase {
   std::vector<RowMatrix> _A;
   std::vector<RowMatrix> _B;
   std::vector<Vector> _cluster_norms;
+
+  using LorannBase<T>::clustering;
+  using LorannBase<T>::select_final;
+
+  using LorannBase<T>::_data;
+  using LorannBase<T>::_n_samples;
+  using LorannBase<T>::_dim;
+  using LorannBase<T>::_n_clusters;
+  using LorannBase<T>::_global_dim;
+  using LorannBase<T>::_max_rank;
+  using LorannBase<T>::_train_size;
+  using LorannBase<T>::_distance;
+  using LorannBase<T>::_balanced;
+  using LorannBase<T>::_cluster_map;
+  using LorannBase<T>::_global_centroid_norms;
+  using LorannBase<T>::_cluster_sizes;
+  using LorannBase<T>::_data_norms;
 };
 
 }  // namespace Lorann
 
-CEREAL_REGISTER_TYPE(Lorann::LorannFP)
-CEREAL_REGISTER_POLYMORPHIC_RELATION(Lorann::LorannBase, Lorann::LorannFP)
+#define REGISTER_LORANNFP_TYPES(DataType)          \
+  CEREAL_REGISTER_TYPE(Lorann::LorannFP<DataType>) \
+  CEREAL_REGISTER_POLYMORPHIC_RELATION(Lorann::LorannBase<DataType>, Lorann::LorannFP<DataType>)
+
+REGISTER_LORANNFP_TYPES(float)
+REGISTER_LORANNFP_TYPES(_Float16)
+REGISTER_LORANNFP_TYPES(uint8_t)
+REGISTER_LORANNFP_TYPES(Lorann::BinaryType)

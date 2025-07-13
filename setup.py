@@ -72,7 +72,7 @@ class BuildExt(build_ext):
                 ]
             )
 
-            for flag in ["-fvisibility=hidden", "-march=native", "-mcpu=native"]:
+            for flag in ["-fvisibility=hidden", "-march=armv8.2-a+fp16fml", "-mcpu=native"]:
                 if has_flag(self.compiler, flag):
                     opts.append(flag)
 
