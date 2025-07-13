@@ -49,7 +49,7 @@ struct Traits<_Float16> {
       dst[i] = _mm_cvtsh_ss(src[i]);
     }
   }
-#elif defined(__ARM_NEON) || defined(__ARM_NEON__)
+#elif defined(__ARM_FEATURE_FP16_FML) || defined(__ARM_FEATURE_FP16FML)
   __attribute__((target("+fullfp16,+fp16fml"))) static void convert_f16_to_f32(const _Float16 *src,
                                                                                float *dst,
                                                                                const size_t count) {

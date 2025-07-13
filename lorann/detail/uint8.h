@@ -89,7 +89,7 @@ struct Traits<uint8_t> {
     return _mm_cvtsi128_si32(sum128);
   }
 
-  static inline int32_t dot_product(const uint8_t *a, const uint8_t *b, const std::size_t dim) {
+  static inline float dot_product(const uint8_t *a, const uint8_t *b, const std::size_t dim) {
     const __m512i v_ones = _mm512_set1_epi16(1);
     __m512i acc32 = _mm512_setzero_si512();
 
