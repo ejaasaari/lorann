@@ -69,6 +69,12 @@ struct Traits<_Float16> {
       dst[i] = static_cast<float>(src[i]);
     }
   }
+#else
+  static void convert_f16_to_f32(const _Float16 *src, float *dst, const size_t count) {
+    for (size_t i = 0; i < count; ++i) {
+      dst[i] = static_cast<float>(src[i]);
+    }
+  }
 #endif
 
   static inline Lorann::ColVector to_float_vector(const _Float16 *x, int d) {

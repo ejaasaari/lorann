@@ -255,7 +255,7 @@ struct Traits<BinaryType> {
     const uint8_t *b = reinterpret_cast<const uint8_t *>(y);
 
     int sum = 0;
-    for (int i = 0; i < n_bytes; ++i) {
+    for (size_t i = 0; i < n_bytes; ++i) {
       const uint8_t and_result = a[i] & b[i];
       sum += POPCOUNT(and_result);
     }
@@ -385,7 +385,7 @@ struct Traits<BinaryType> {
     const uint8_t *b = reinterpret_cast<const uint8_t *>(y);
 
     int sum = 0;
-    for (int i = 0; i < n_bytes; ++i) {
+    for (size_t i = 0; i < n_bytes; ++i) {
       const uint8_t and_result = a[i] ^ b[i];
       sum += POPCOUNT(and_result);
     }
