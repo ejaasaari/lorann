@@ -1,0 +1,15 @@
+[submodule "external/eigen"]
+	path = external/eigen
+	url = https://gitlab.com/libeigen/eigen.git
+[submodule "external/cereal"]
+	path = external/cereal
+	url = https://github.com/USCiLab/cereal
+[submodule "external/miniselect"]
+	path = external/miniselect
+	url = https://github.com/danlark1/miniselect
+[submodule "external/rsvd"]
+	path = external/rsvd
+	url = https://github.com/mp4096/rsvd
+[submodule "external/SimSIMD"]
+	path = external/SimSIMD
+	url = https://github.com/ashvardanian/SimSIMD
