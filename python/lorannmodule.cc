@@ -21,6 +21,7 @@
 
 #include <Eigen/Dense>
 #include <cereal/archives/binary.hpp>
+#include <simsimd/simsimd.h>
 
 #include "lorann.h"
 #include "lorann_base.h"
@@ -508,7 +509,7 @@ static PyObject *lorann_save(LorannIndex<T> *self, PyObject *args) {
   }
 
 DECLARE_LORANN_PYTYPE(FP32, float);
-DECLARE_LORANN_PYTYPE(FP16, _Float16);
+DECLARE_LORANN_PYTYPE(FP16, simsimd_f16_t);
 DECLARE_LORANN_PYTYPE(U8, uint8_t);
 DECLARE_LORANN_PYTYPE(Binary, Lorann::BinaryType);
 
@@ -597,7 +598,7 @@ static PyObject *lorann_load(PyObject *self, PyObject *args) {
     case Lorann::detail::FLOAT32:
       return load_impl<float>(&FP32LorannIndexType, input_file, fname);
     case Lorann::detail::FLOAT16:
-      return load_impl<_Float16>(&FP16LorannIndexType, input_file, fname);
+      return load_impl<simsimd_f16_t>(&FP16LorannIndexType, input_file, fname);
     case Lorann::detail::UINT8:
       return load_impl<uint8_t>(&U8LorannIndexType, input_file, fname);
     case Lorann::detail::BINARY:

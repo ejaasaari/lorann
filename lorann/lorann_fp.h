@@ -314,6 +314,6 @@ class LorannFP : public LorannBase<T> {
   CEREAL_REGISTER_POLYMORPHIC_RELATION(Lorann::LorannBase<DataType>, Lorann::LorannFP<DataType>)
 
 REGISTER_LORANNFP_TYPES(float)
-REGISTER_LORANNFP_TYPES(_Float16)
+REGISTER_LORANNFP_TYPES(simsimd_f16_t)
 REGISTER_LORANNFP_TYPES(uint8_t)
 REGISTER_LORANNFP_TYPES(Lorann::BinaryType)

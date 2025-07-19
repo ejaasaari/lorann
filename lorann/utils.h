@@ -29,7 +29,7 @@
 #define RSVD_OVERSAMPLES 10
 #define RSVD_N_ITER 4
 
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#define LORANN_MIN(a, b) ((a) < (b) ? (a) : (b))
 
 #define LORANN_ENSURE_POSITIVE(x)                               \
   if ((x) <= 0) {                                               \

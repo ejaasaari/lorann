@@ -4,6 +4,8 @@
 #include <variant>
 #include <vector>
 
+#include <simsimd/simsimd.h>
+
 #include "clustering.h"
 #include "detail/detail.h"
 #include "serialization.h"

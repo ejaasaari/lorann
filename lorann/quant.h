@@ -388,8 +388,8 @@ struct SQ4Quantizer : SQQuantizer {
       const float *v = A.data() + i * (n + 1) + 1;
       const float factor = compute_quantization_factor(v, n, 4);
       for (int k = 0; k < qk / 2; ++k) {
-        const uint8_t a = MIN(15, factor * v[k] + 8.5f);
-        const uint8_t b = MIN(15, factor * v[qk / 2 + k] + 8.5f);
+        const uint8_t a = LORANN_MIN(15, factor * v[k] + 8.5f);
+        const uint8_t b = LORANN_MIN(15, factor * v[qk / 2 + k] + 8.5f);
 
         result[i * n / 2 + k] = a;
         result[i * n / 2 + k] |= b << 4;
@@ -409,8 +409,8 @@ struct SQ4Quantizer : SQQuantizer {
       const float factor = compute_quantization_factor(v, n, 4);
       for (int j = 0; j < nb; ++j) {
         for (int k = 0; k < qk / 2; ++k) {
-          const uint8_t a = MIN(15, factor * v[j * qk + 0 + k] + 8.5f);
-          const uint8_t b = MIN(15, factor * v[j * qk + qk / 2 + k] + 8.5f);
+          const uint8_t a = LORANN_MIN(15, factor * v[j * qk + 0 + k] + 8.5f);
+          const uint8_t b = LORANN_MIN(15, factor * v[j * qk + qk / 2 + k] + 8.5f);
 
           result[i * n / 2 + j * qk / 2 + k] = a;
           result[i * n / 2 + j * qk / 2 + k] |= b << 4;

@@ -404,6 +404,6 @@ class Lorann : public LorannBase<T> {
   CEREAL_REGISTER_POLYMORPHIC_RELATION(Lorann::LorannBase<DataType>, TypePrefix##_sq8sq8)
 
 REGISTER_LORANN_TYPES(float, lorann_fp32)
-REGISTER_LORANN_TYPES(_Float16, lorann_fp16)
+REGISTER_LORANN_TYPES(simsimd_f16_t, lorann_fp16)
 REGISTER_LORANN_TYPES(uint8_t, lorann_u8)
 REGISTER_LORANN_TYPES(Lorann::BinaryType, lorann_b)
