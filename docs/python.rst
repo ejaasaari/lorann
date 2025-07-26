@@ -7,6 +7,7 @@ LorannIndex
 .. autoclass:: lorann.LorannIndex
    :members:
    :undoc-members:
+   :inherited-members:
 
 LorannBinaryIndex
 ^^^^^^^^^^^
@@ -14,6 +15,7 @@ LorannBinaryIndex
 .. autoclass:: lorann.LorannBinaryIndex
    :members:
    :undoc-members:
+   :inherited-members:
 
 KMeans
 ^^^^^^
