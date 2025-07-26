@@ -123,7 +123,7 @@ class LorannBaseIndex(object):
         points_to_rerank: int,
         return_distances: bool = False,
         n_threads: int = -1,
-    ) -> Union[npt.NDArray[np.int32], Tuple[npt.NDArray[np.int32], npt.NDArray[np.float32]]]:
+    ) -> Union[npt.NDArray[np.int32], Tuple[npt.NDArray[np.int32], npt.NDArray[np.float64]]]:
         """
         Performs an approximate nearest neighbor query for single or multiple query vectors.
 
@@ -165,7 +165,7 @@ class LorannBaseIndex(object):
         k: int,
         return_distances: bool = False,
         n_threads: int = -1,
-    ) -> Union[npt.NDArray[np.int32], Tuple[npt.NDArray[np.int32], npt.NDArray[np.float32]]]:
+    ) -> Union[npt.NDArray[np.int32], Tuple[npt.NDArray[np.int32], npt.NDArray[np.float64]]]:
         """
         Performs an exact nearest neighbor query for single or multiple query vectors.
 
