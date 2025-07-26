@@ -349,6 +349,48 @@ regression models. Defaults to 5, but lower values can be used if
 </dd></dl>
 
 </section>
+<section id="lorannbinaryindex">
+<h2>LorannBinaryIndex<a class="headerlink" href="#lorannbinaryindex" title="Link to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="lorann.LorannBinaryIndex">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">lorann.</span></span><span class="sig-name descname"><span class="pre">LorannBinaryIndex</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_clusters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">global_dim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quantization_bits</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">8</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rank</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">32</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">train_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">distance</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">lorannlib.IP</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">balanced</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">copy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lorann.LorannBinaryIndex" title="Link to this definition">#</a></dt>
+<dd><p>Initializes a LorannBinaryIndex object. The initializer does not build the actual index.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code>[<code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code>, <code class="xref py py-data docutils literal notranslate"><span class="pre">...</span></code>], <code class="xref py py-class docutils literal notranslate"><span class="pre">dtype</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">uint8</span></code>]]</span>) – Index points as an <span class="math notranslate nohighlight">\(m \times (d / 8)\)</span> numpy array of type np.uint8, where bits
+have been packed into bytes, e.g. by using np.packbits.</p></li>
+<li><p><strong>n_clusters</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></span>) – Number of clusters. In general, for <span class="math notranslate nohighlight">\(m\)</span> index points, a good starting point
+is to set n_clusters as around <span class="math notranslate nohighlight">\(\sqrt{m}\)</span>.</p></li>
+<li><p><strong>global_dim</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code>]</span>) – Globally reduced dimension (<span class="math notranslate nohighlight">\(s\)</span>). Must be either None or an integer that is
+a multiple of 32. Higher values increase recall but also increase the query latency.
+In general, a good starting point is to set global_dim = None if <span class="math notranslate nohighlight">\(d &lt; 200\)</span>,
+global_dim = 128 if <span class="math notranslate nohighlight">\(200 \leq d \leq 1000\)</span>, and global_dim = 256 if <span class="math notranslate nohighlight">\(d &gt; 1000\)</span>.</p></li>
+<li><p><strong>quantization_bits</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code>]</span>) – Number of bits used for quantizing the parameter matrices. Must be
+None, 4, or 8. Defaults to 8. None turns off quantization, and setting
+quantization_bits = 4 lowers the memory consumption without affecting the query
+latency but can lead to reduced recall on some data sets.</p></li>
+<li><p><strong>rank</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></span>) – Rank (<span class="math notranslate nohighlight">\(r\)</span>) of the parameter matrices. Must be 16, 32, or 64 if quantization_bits
+is not None. Defaults to 32. Rank = 64 is mainly only useful if no exact re-ranking
+is performed in the query phase.</p></li>
+<li><p><strong>train_size</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></span>) – Number of nearby clusters (<span class="math notranslate nohighlight">\(w\)</span>) used for training the reduced-rank
+regression models. Defaults to 5, but lower values can be used if
+<span class="math notranslate nohighlight">\(m \gtrsim 500 000\)</span> to speed up the index construction.</p></li>
+<li><p><strong>distance</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></span>) – The distance measure to use. Either IP or L2. Defaults to IP.</p></li>
+<li><p><strong>balanced</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></span>) – Whether to use balanced clustering. Defaults to False.</p></li>
+<li><p><strong>copy</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></span>) – Whether to copy the input data. Defaults to False.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If the input parameters are invalid.</p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
 <section id="kmeans">
 <h2>KMeans<a class="headerlink" href="#kmeans" title="Link to this heading">#</a></h2>
 <dl class="py class">
@@ -517,6 +559,10 @@ assigned to corresponding cluster.</p>
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#lorannindex">LorannIndex</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#lorann.LorannIndex"><code class="docutils literal notranslate"><span class="pre">LorannIndex</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#lorannbinaryindex">LorannBinaryIndex</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#lorann.LorannBinaryIndex"><code class="docutils literal notranslate"><span class="pre">LorannBinaryIndex</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#kmeans">KMeans</a><ul class="nav section-nav flex-column">
