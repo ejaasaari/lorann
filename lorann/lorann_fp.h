@@ -31,7 +31,8 @@ class LorannFP final : public LorannBase<T> {
    *
    * NOTE: The constructor does not build the actual index.
    *
-   * @param data The data matrix as a float array of size $m \\times d$
+   * @param data The data matrix as a T array of size $m \\times d$, where T is either float,
+   * simsimd_f16_t, simsimd_bf16_t, uint8_t, or Lorann::BinaryType
    * @param m Number of points (rows) in the data matrix
    * @param d Number of dimensions (cols) in the data matrix
    * @param n_clusters Number of clusters. In general, for $m$ index points, a good starting point
@@ -144,7 +145,7 @@ class LorannFP final : public LorannBase<T> {
   /**
    * @brief Build the index.
    *
-   * @param query_data A float array of training queries of size $n \\times d$ used to build the
+   * @param query_data An array of training queries of size $n \\times d$ used to build the
    * index. Can be useful in the out-of-distribution setting where the training and query
    * distributions differ. Ideally there should be at least as many training query points as there
    * are index points.
