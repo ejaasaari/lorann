@@ -69,7 +69,7 @@ print('Exact:', exact)
 
 The data matrix should have type `float32`, `float16`, `uint8`, or `uint16` ([for bfloat16](https://github.com/ashvardanian/SimSIMD?tab=readme-ov-file#half-precision-brain-float-numbers)). For binary data (packed into uint8 bytes using e.g. `numpy.packbits`), use `LorannBinaryIndex`.
 
-The distance should be either `lorann.L2` (for squared Euclidean distance) or `lorann.IP` (for inner product). For cosine distance, normalize vectors to unit norm and use `lorann.IP`.
+The distance should be either `lorann.L2` (for squared Euclidean distance), `lorann.IP` (for inner product), or `lorann.HAMMING` (only for binary data). For cosine distance, normalize vectors to unit norm and use `lorann.IP`.
 
 For a more detailed example, see [examples/example.py](examples/example.py).
 
