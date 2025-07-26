@@ -8,6 +8,13 @@ LorannIndex
    :members:
    :undoc-members:
 
+LorannBinaryIndex
+^^^^^^^^^^^
+
+.. autoclass:: lorann.LorannBinaryIndex
+   :members:
+   :undoc-members:
+
 KMeans
 ^^^^^^
 
