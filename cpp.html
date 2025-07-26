@@ -322,7 +322,7 @@
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>data</strong> – The data matrix as a float array of size <span class="math notranslate nohighlight">\(m \times d\)</span> </p></li>
+<li><p><strong>data</strong> – The data matrix as a T array of size <span class="math notranslate nohighlight">\(m \times d\)</span>, where T is either float, simsimd_f16_t, simsimd_bf16_t, uint8_t, or Lorann::BinaryType </p></li>
 <li><p><strong>m</strong> – Number of points (rows) in the data matrix </p></li>
 <li><p><strong>d</strong> – Number of dimensions (cols) in the data matrix </p></li>
 <li><p><strong>n_clusters</strong> – Number of clusters. In general, for <span class="math notranslate nohighlight">\(m\)</span> index points, a good starting point is to set n_clusters as around <span class="math notranslate nohighlight">\(\sqrt{m}\)</span>. </p></li>
@@ -362,7 +362,7 @@
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>query_data</strong> – A float array of training queries of size <span class="math notranslate nohighlight">\(n \times d\)</span> used to build the index. Can be useful in the out-of-distribution setting where the training and query distributions differ. Ideally there should be at least as many training query points as there are index points. </p></li>
+<li><p><strong>query_data</strong> – An array of training queries of size <span class="math notranslate nohighlight">\(n \times d\)</span> used to build the index. Can be useful in the out-of-distribution setting where the training and query distributions differ. Ideally there should be at least as many training query points as there are index points. </p></li>
 <li><p><strong>query_n</strong> – The number of training queries </p></li>
 <li><p><strong>approximate</strong> – Whether to turn on various approximations during index construction. Defaults to true. Setting approximate to false slows down the index construction but can slightly increase the recall, especially if no exact re-ranking is used in the query phase. </p></li>
 <li><p><strong>verbose</strong> – Whether to use verbose output for index construction. Defaults to false. </p></li>
@@ -469,7 +469,7 @@
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>data</strong> – The data matrix as a float array of size <span class="math notranslate nohighlight">\(m \times d\)</span> </p></li>
+<li><p><strong>data</strong> – The data matrix as a T array of size <span class="math notranslate nohighlight">\(m \times d\)</span>, where T is either float, simsimd_f16_t, simsimd_bf16_t, uint8_t, or Lorann::BinaryType </p></li>
 <li><p><strong>m</strong> – Number of points (rows) in the data matrix </p></li>
 <li><p><strong>d</strong> – Number of dimensions (cols) in the data matrix </p></li>
 <li><p><strong>n_clusters</strong> – Number of clusters. In general, for <span class="math notranslate nohighlight">\(m\)</span> index points, a good starting point is to set n_clusters as around <span class="math notranslate nohighlight">\(\sqrt{m}\)</span>. </p></li>
@@ -509,7 +509,7 @@
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>query_data</strong> – A float array of training queries of size <span class="math notranslate nohighlight">\(n \times d\)</span> used to build the index. Can be useful in the out-of-distribution setting where the training and query distributions differ. Ideally there should be at least as many training query points as there are index points. </p></li>
+<li><p><strong>query_data</strong> – An array of training queries of size <span class="math notranslate nohighlight">\(n \times d\)</span> used to build the index. Can be useful in the out-of-distribution setting where the training and query distributions differ. Ideally there should be at least as many training query points as there are index points. </p></li>
 <li><p><strong>query_n</strong> – The number of training queries </p></li>
 <li><p><strong>approximate</strong> – Whether to turn on various approximations during index construction. Defaults to true. Setting approximate to false slows down the index construction but can slightly increase the recall, especially if no exact re-ranking is used in the query phase. </p></li>
 <li><p><strong>verbose</strong> – Whether to use verbose output for index construction. Defaults to false. </p></li>
