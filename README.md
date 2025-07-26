@@ -15,11 +15,12 @@ Approximate nearest neighbor search library implementing <a href="https://arxiv.
 
 ---
 
-- Lightweight header-only C++17 library with Python bindings
+- Header-only C++17 library with Python bindings
 - Query speed matching state-of-the-art graph methods but with tiny memory usage
 - Optimized for modern high-dimensional (d > 100) embedding data sets
 - Optimized for modern CPU architectures with acceleration for AVX2, AVX-512, and ARM NEON
 - State-of-the-art query speed for GPU batch queries (experimental)
+- Supported data types: float32, float16, bfloat16, uint8, binary
 - Supported distances: (negative) inner product, Euclidean distance, cosine distance
 - Support for index serialization
 
@@ -53,7 +54,7 @@ index = lorann.LorannIndex(
     n_clusters=256,
     global_dim=128,
     quantization_bits=8,
-    euclidean=True,
+    distance=lorann.L2,
 )
 
 index.build(verbose=False)
@@ -65,6 +66,10 @@ exact       = index.exact_search(X[-1], k)
 print('Approximate:', approximate)
 print('Exact:', exact)
 ```
+
+The data matrix should have type `float32`, `float16`, `uint8`, or `uint16` ([for bfloat16](https://github.com/ashvardanian/SimSIMD?tab=readme-ov-file#half-precision-brain-float-numbers)). For binary data (packed into uint8 bytes using e.g. `numpy.packbits`), use `LorannBinaryIndex`.
+
+The distance should be either `lorann.L2` (for squared Euclidean distance) or `lorann.IP` (for inner product). For cosine distance, normalize vectors to unit norm and use `lorann.IP`.
 
 For a more detailed example, see [examples/example.py](examples/example.py).
 
@@ -80,7 +85,7 @@ LoRANN is a header-only library so no installation is required: just include the
 Usage is similar to the Python version:
 
 ```cpp
-Lorann::Lorann<Lorann::SQ8Quantizer> index(data, n_samples, dim, n_clusters, global_dim);
+Lorann::Lorann<float, Lorann::SQ8Quantizer> index(data, n_samples, dim, n_clusters, global_dim);
 index.build();
 
 index.search(query, k, clusters_to_search, points_to_rerank, output);
