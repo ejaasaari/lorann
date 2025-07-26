@@ -30,7 +30,7 @@ if sys.argv[1] == "fashion-mnist":
     n_clusters = 256  # number of clusters, a good starting point is around sqrt(n)
     global_dim = 128  # globally reduced dimension (s), None to turn off
     quantization_bits = 8  # number of bits used to quantize the parameter matrices
-    euclidean = True  # whether to use Euclidean distance
+    distance = lorann.L2  # distance measure
 
     ### LoRANN query hyperparameters
     clusters_to_search = 10
@@ -42,7 +42,7 @@ elif sys.argv[1] == "sift":
     n_clusters = 1024  # number of clusters, a good starting point is around sqrt(n)
     global_dim = None  # globally reduced dimension (s), None to turn off
     quantization_bits = 4  # number of bits used to quantize the parameter matrices
-    euclidean = True  # whether to use Euclidean distance
+    distance = lorann.L2  # distance measure
 
     ### LoRANN query hyperparameters
     clusters_to_search = 32
@@ -58,17 +58,17 @@ train = f["train"][:]
 test = f["test"][:]
 
 # if using cosine distance, make sure all vectors have unit norm
-if not euclidean:
+if "cosine" in dataset and distance == lorann.IP:
     train[np.linalg.norm(train, axis=1) == 0] = 1.0 / np.sqrt(train.shape[1])
     train /= np.linalg.norm(train, axis=1)[:, np.newaxis]
 
 # initialize the LoRANN index
-index = lorann.LorannIndex(
+index = lorann.LorannIndex(  # use lorann.LorannBinaryIndex for binary data
     data=train,
     n_clusters=n_clusters,
     global_dim=global_dim,
     quantization_bits=quantization_bits,
-    euclidean=euclidean,
+    distance=distance,
 )
 
 if os.path.isfile("%s.lorann" % sys.argv[1]):
@@ -86,10 +86,10 @@ start_time = time.time()
 results, distances = index.search(
     test, k, clusters_to_search, points_to_rerank, return_distances=True
 )
-# results, distances = index.exact_search(test, k, return_distances=True)
+# exact_results, distances = index.exact_search(test, k, return_distances=True)
 end_time = time.time()
 
-recall = lorann.compute_recall(results, f["neighbors"][:])
+recall = lorann.compute_recall(results, f["neighbors"][:, :k])
 print("Recall:", recall)
 print("Average query time (ms):", (end_time - start_time) / len(results) * 1e3)
 

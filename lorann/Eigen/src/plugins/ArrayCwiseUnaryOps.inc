@@ -11,6 +11,7 @@ typedef CwiseUnaryOp<internal::scalar_boolean_not_op<Scalar>, const Derived> Boo
 typedef CwiseUnaryOp<internal::scalar_bitwise_not_op<Scalar>, const Derived> BitwiseNotReturnType;
 
 typedef CwiseUnaryOp<internal::scalar_exp_op<Scalar>, const Derived> ExpReturnType;
+typedef CwiseUnaryOp<internal::scalar_exp2_op<Scalar>, const Derived> Exp2ReturnType;
 typedef CwiseUnaryOp<internal::scalar_expm1_op<Scalar>, const Derived> Expm1ReturnType;
 typedef CwiseUnaryOp<internal::scalar_log_op<Scalar>, const Derived> LogReturnType;
 typedef CwiseUnaryOp<internal::scalar_log1p_op<Scalar>, const Derived> Log1pReturnType;
@@ -78,9 +79,19 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Abs2ReturnType abs2() const { return
  * Example: \include Cwise_exp.cpp
  * Output: \verbinclude Cwise_exp.out
  *
- * \sa <a href="group__CoeffwiseMathFunctions.html#cwisetable_exp">Math functions</a>, pow(), log(), sin(), cos()
+ * \sa <a href="group__CoeffwiseMathFunctions.html#cwisetable_exp">Math functions</a>, exp2(), pow(), log(), sin(),
+ * cos()
  */
 EIGEN_DEVICE_FUNC inline const ExpReturnType exp() const { return ExpReturnType(derived()); }
+
+/** \returns an expression of the coefficient-wise exponential of *this.
+ *
+ * This function computes the coefficient-wise base2 exponential, i.e. 2^x.
+ *
+ * \sa <a href="group__CoeffwiseMathFunctions.html#cwisetable_exp">Math functions</a>, exp(), pow(), log(), sin(),
+ * cos()
+ */
+EIGEN_DEVICE_FUNC inline const Exp2ReturnType exp2() const { return Exp2ReturnType(derived()); }
 
 /** \returns an expression of the coefficient-wise exponential of *this minus 1.
  *
@@ -512,15 +523,11 @@ using UnaryPowReturnType =
     std::enable_if_t<internal::is_arithmetic<typename NumTraits<ScalarExponent>::Real>::value,
                      CwiseUnaryOp<internal::scalar_unary_pow_op<Scalar, ScalarExponent>, const Derived>>;
 
-#ifndef EIGEN_PARSED_BY_DOXYGEN
-template <typename ScalarExponent>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const UnaryPowReturnType<ScalarExponent> pow(
-    const ScalarExponent& exponent) const {
-  return UnaryPowReturnType<ScalarExponent>(derived(), internal::scalar_unary_pow_op<Scalar, ScalarExponent>(exponent));
-#else
 /** \returns an expression of the coefficients of \c *this raised to the constant power \a exponent
  *
- * \tparam T is the scalar type of \a exponent. It must be compatible with the scalar type of the given expression.
+ * \tparam ScalarExponent is the scalar type of \a exponent. It must be compatible with the scalar type
+ *         of the given expression.
+ * \param exponent the scalar exponent value.
  *
  * This function computes the coefficient-wise power. The function MatrixBase::pow() in the
  * unsupported module MatrixFunctions computes the matrix power.
@@ -532,6 +539,6 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const UnaryPowReturnType<ScalarExponent> p
  */
 template <typename ScalarExponent>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const UnaryPowReturnType<ScalarExponent> pow(
-    const ScalarExponent& exponent) const;
-#endif
+    const ScalarExponent& exponent) const {
+  return UnaryPowReturnType<ScalarExponent>(derived(), internal::scalar_unary_pow_op<Scalar, ScalarExponent>(exponent));
 }

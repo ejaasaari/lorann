@@ -186,6 +186,7 @@ struct packet_traits<float> : default_packet_traits {
     HasExp = 1,
 #ifdef EIGEN_VECTORIZE_VSX
     HasSqrt = 1,
+    HasCbrt = 1,
 #if !EIGEN_COMP_CLANG
     HasRsqrt = 1,
 #else
@@ -193,6 +194,7 @@ struct packet_traits<float> : default_packet_traits {
 #endif
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
+    HasErfc = EIGEN_FAST_MATH,
 #else
     HasSqrt = 0,
     HasRsqrt = 0,
@@ -423,55 +425,6 @@ struct unpacket_traits<Packet8bf> {
     masked_store_available = false
   };
 };
-inline std::ostream& operator<<(std::ostream& s, const Packet16c& v) {
-  union {
-    Packet16c v;
-    signed char n[16];
-  } vt;
-  vt.v = v;
-  for (int i = 0; i < 16; i++) s << vt.n[i] << ", ";
-  return s;
-}
-
-inline std::ostream& operator<<(std::ostream& s, const Packet16uc& v) {
-  union {
-    Packet16uc v;
-    unsigned char n[16];
-  } vt;
-  vt.v = v;
-  for (int i = 0; i < 16; i++) s << vt.n[i] << ", ";
-  return s;
-}
-
-inline std::ostream& operator<<(std::ostream& s, const Packet4f& v) {
-  union {
-    Packet4f v;
-    float n[4];
-  } vt;
-  vt.v = v;
-  s << vt.n[0] << ", " << vt.n[1] << ", " << vt.n[2] << ", " << vt.n[3];
-  return s;
-}
-
-inline std::ostream& operator<<(std::ostream& s, const Packet4i& v) {
-  union {
-    Packet4i v;
-    int n[4];
-  } vt;
-  vt.v = v;
-  s << vt.n[0] << ", " << vt.n[1] << ", " << vt.n[2] << ", " << vt.n[3];
-  return s;
-}
-
-inline std::ostream& operator<<(std::ostream& s, const Packet4ui& v) {
-  union {
-    Packet4ui v;
-    unsigned int n[4];
-  } vt;
-  vt.v = v;
-  s << vt.n[0] << ", " << vt.n[1] << ", " << vt.n[2] << ", " << vt.n[3];
-  return s;
-}
 
 template <typename Packet>
 EIGEN_STRONG_INLINE Packet pload_common(const __UNPACK_TYPE__(Packet) * from) {
@@ -1513,16 +1466,13 @@ EIGEN_STRONG_INLINE Packet4f print<Packet4f>(const Packet4f& a) {
 
 template <typename Packet>
 EIGEN_STRONG_INLINE Packet ploadu_common(const __UNPACK_TYPE__(Packet) * from) {
-  EIGEN_DEBUG_ALIGNED_LOAD
-#if defined(EIGEN_VECTORIZE_VSX) || !defined(_BIG_ENDIAN)
   EIGEN_DEBUG_UNALIGNED_LOAD
+#if defined(EIGEN_VECTORIZE_VSX)
   return vec_xl(0, const_cast<__UNPACK_TYPE__(Packet)*>(from));
 #else
-  Packet16uc MSQ, LSQ;
-  Packet16uc mask;
-  MSQ = vec_ld(0, (unsigned char*)from);   // most significant quadword
-  LSQ = vec_ld(15, (unsigned char*)from);  // least significant quadword
-  mask = vec_lvsl(0, from);                // create the permute mask
+  Packet16uc MSQ = vec_ld(0, (unsigned char*)from);   // most significant quadword
+  Packet16uc LSQ = vec_ld(15, (unsigned char*)from);  // least significant quadword
+  Packet16uc mask = vec_lvsl(0, from);                // create the permute mask
   // TODO: Add static_cast here
   return (Packet)vec_perm(MSQ, LSQ, mask);  // align the data
 #endif
@@ -1732,7 +1682,7 @@ EIGEN_STRONG_INLINE Packet16uc ploadquad<Packet16uc>(const unsigned char* from) 
 template <typename Packet>
 EIGEN_STRONG_INLINE void pstoreu_common(__UNPACK_TYPE__(Packet) * to, const Packet& from) {
   EIGEN_DEBUG_UNALIGNED_STORE
-#if defined(EIGEN_VECTORIZE_VSX) || !defined(_BIG_ENDIAN)
+#if defined(EIGEN_VECTORIZE_VSX)
   vec_xst(from, 0, to);
 #else
   // Taken from http://developer.apple.com/hardwaredrivers/ve/alignment.html
@@ -2068,7 +2018,7 @@ EIGEN_STRONG_INLINE Packet8bf F32ToBf16(Packet4f p4f) {
   input = padd<Packet4ui>(input, rounding_bias);
 
   const EIGEN_DECLARE_CONST_FAST_Packet4ui(nan, 0x7FC00000);
-#ifdef _ARCH_PWR9
+#if defined(_ARCH_PWR9) && defined(EIGEN_VECTORIZE_VSX)
   Packet4bi nan_selector = vec_test_data_class(p4f, __VEC_CLASS_FP_NAN);
   input = vec_sel(input, p4ui_nan, nan_selector);
 
@@ -2115,7 +2065,7 @@ EIGEN_STRONG_INLINE Packet8bf F32ToBf16(Packet4f p4f) {
 /**
  * Pack the high portion of two float Packets into one bfloat16 Packet
  *
- * @param lohi to expect either a low & high OR odd & even order
+ * @tparam lohi to expect either a low & high OR odd & even order
  */
 template <bool lohi>
 EIGEN_ALWAYS_INLINE Packet8bf Bf16PackHigh(Packet4f lo, Packet4f hi) {
@@ -2162,7 +2112,7 @@ EIGEN_ALWAYS_INLINE Packet8bf Bf16PackHigh(Packet4f hi, Packet4f lo) {
 /**
  * Convert and pack two float Packets into one bfloat16 Packet
  *
- * @param lohi to expect either a low & high OR odd & even order
+ * @tparam lohi to expect either a low & high OR odd & even order
  */
 template <bool lohi = true>
 EIGEN_ALWAYS_INLINE Packet8bf F32ToBf16Two(Packet4f lo, Packet4f hi) {
@@ -2177,7 +2127,7 @@ EIGEN_ALWAYS_INLINE Packet8bf F32ToBf16Two(Packet4f lo, Packet4f hi) {
   Packet8bi rounding_bias = vec_cmplt(lsb, p4f2);
   Packet8us input = psub<Packet8us>(p4f, reinterpret_cast<Packet8us>(rounding_bias));
 
-#ifdef _ARCH_PWR9
+#if defined(_ARCH_PWR9) && defined(EIGEN_VECTORIZE_VSX)
   Packet4bi nan_selector_lo = vec_test_data_class(lo, __VEC_CLASS_FP_NAN);
   Packet4bi nan_selector_hi = vec_test_data_class(hi, __VEC_CLASS_FP_NAN);
   Packet8us nan_selector =
@@ -2310,6 +2260,11 @@ EIGEN_STRONG_INLINE Packet8bf pexp<Packet8bf>(const Packet8bf& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet8bf pexp2<Packet8bf>(const Packet8bf& a) {
+  BF16_TO_F32_UNARY_OP_WRAPPER(generic_exp2, a);
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet4f pldexp<Packet4f>(const Packet4f& a, const Packet4f& exponent) {
   return pldexp_generic(a, exponent);
 }
@@ -2378,6 +2333,44 @@ EIGEN_STRONG_INLINE Packet8bf pmadd(const Packet8bf& a, const Packet8bf& b, cons
   Packet4f c_odd = Bf16ToF32Odd(c);
   Packet4f pmadd_even = pmadd<Packet4f>(a_even, b_even, c_even);
   Packet4f pmadd_odd = pmadd<Packet4f>(a_odd, b_odd, c_odd);
+  return F32ToBf16(pmadd_even, pmadd_odd);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8bf pmsub(const Packet8bf& a, const Packet8bf& b, const Packet8bf& c) {
+  Packet4f a_even = Bf16ToF32Even(a);
+  Packet4f a_odd = Bf16ToF32Odd(a);
+  Packet4f b_even = Bf16ToF32Even(b);
+  Packet4f b_odd = Bf16ToF32Odd(b);
+  Packet4f c_even = Bf16ToF32Even(c);
+  Packet4f c_odd = Bf16ToF32Odd(c);
+  Packet4f pmadd_even = pmsub<Packet4f>(a_even, b_even, c_even);
+  Packet4f pmadd_odd = pmsub<Packet4f>(a_odd, b_odd, c_odd);
+  return F32ToBf16(pmadd_even, pmadd_odd);
+}
+template <>
+EIGEN_STRONG_INLINE Packet8bf pnmadd(const Packet8bf& a, const Packet8bf& b, const Packet8bf& c) {
+  Packet4f a_even = Bf16ToF32Even(a);
+  Packet4f a_odd = Bf16ToF32Odd(a);
+  Packet4f b_even = Bf16ToF32Even(b);
+  Packet4f b_odd = Bf16ToF32Odd(b);
+  Packet4f c_even = Bf16ToF32Even(c);
+  Packet4f c_odd = Bf16ToF32Odd(c);
+  Packet4f pmadd_even = pnmadd<Packet4f>(a_even, b_even, c_even);
+  Packet4f pmadd_odd = pnmadd<Packet4f>(a_odd, b_odd, c_odd);
+  return F32ToBf16(pmadd_even, pmadd_odd);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8bf pnmsub(const Packet8bf& a, const Packet8bf& b, const Packet8bf& c) {
+  Packet4f a_even = Bf16ToF32Even(a);
+  Packet4f a_odd = Bf16ToF32Odd(a);
+  Packet4f b_even = Bf16ToF32Even(b);
+  Packet4f b_odd = Bf16ToF32Odd(b);
+  Packet4f c_even = Bf16ToF32Even(c);
+  Packet4f c_odd = Bf16ToF32Odd(c);
+  Packet4f pmadd_even = pnmsub<Packet4f>(a_even, b_even, c_even);
+  Packet4f pmadd_odd = pnmsub<Packet4f>(a_odd, b_odd, c_odd);
   return F32ToBf16(pmadd_even, pmadd_odd);
 }
 
@@ -3177,11 +3170,14 @@ struct packet_traits<double> : default_packet_traits {
     HasSin = EIGEN_FAST_MATH,
     HasCos = EIGEN_FAST_MATH,
     HasTanh = EIGEN_FAST_MATH,
+    HasErf = EIGEN_FAST_MATH,
+    HasErfc = EIGEN_FAST_MATH,
     HasATanh = 1,
     HasATan = 0,
     HasLog = 0,
     HasExp = 1,
     HasSqrt = 1,
+    HasCbrt = 1,
 #if !EIGEN_COMP_CLANG
     HasRsqrt = 1,
 #else
@@ -3392,9 +3388,17 @@ EIGEN_STRONG_INLINE Packet2d pcmp_eq(const Packet2d& a, const Packet2d& b) {
   return reinterpret_cast<Packet2d>(vec_cmpeq(a, b));
 }
 template <>
+#ifdef __POWER8_VECTOR__
 EIGEN_STRONG_INLINE Packet2l pcmp_eq(const Packet2l& a, const Packet2l& b) {
   return reinterpret_cast<Packet2l>(vec_cmpeq(a, b));
 }
+#else
+EIGEN_STRONG_INLINE Packet2l pcmp_eq(const Packet2l& a, const Packet2l& b) {
+  Packet4i halves = reinterpret_cast<Packet4i>(vec_cmpeq(reinterpret_cast<Packet4i>(a), reinterpret_cast<Packet4i>(b)));
+  Packet4i flipped = vec_perm(halves, halves, p16uc_COMPLEX32_REV);
+  return reinterpret_cast<Packet2l>(pand(halves, flipped));
+}
+#endif
 template <>
 EIGEN_STRONG_INLINE Packet2d pcmp_lt_or_nan(const Packet2d& a, const Packet2d& b) {
   Packet2d c = reinterpret_cast<Packet2d>(vec_cmpge(a, b));

@@ -24,8 +24,7 @@ class KMeans {
    *
    * @param n_clusters The number of clusters (k)
    * @param iters The number of k-means iterations to perform. Defaults to 25.
-   * @param euclidean Whether to use Euclidean distance instead of (negative) inner product as the
-   * dissimilarity measure. Defaults to false.
+   * @param distance The distance measure to use. Either IP or L2. Defaults to IP.
    * @param balanced Whether to ensure clusters are balanced using an efficient balanced k-means
    * algorithm. Defaults to false.
    * @param max_balance_diff The maximum allowed difference in cluster sizes for balanced
@@ -34,11 +33,11 @@ class KMeans {
    * for faster clustering at the cost of clustering quality. Used only if balanced = True.
    * Defaults to 1.4.
    */
-  KMeans(int n_clusters, int iters = 25, bool euclidean = false, bool balanced = false,
+  KMeans(int n_clusters, int iters = 25, Distance distance = IP, bool balanced = false,
          int max_balance_diff = 16, float penalty_factor = 1.4)
       : _iters(iters),
         _n_clusters(n_clusters),
-        _euclidean(euclidean),
+        _distance(distance),
         _balanced(balanced),
         _max_balance_diff(max_balance_diff),
         _penalty_factor(penalty_factor),
@@ -150,7 +149,7 @@ class KMeans {
           Eigen::Map<const Vector>(data + i * _centroids.cols(), _centroids.cols());
       Vector dots = _centroids * q.transpose();
       Vector dists;
-      if (_euclidean) {
+      if (_distance == L2) {
         dists = -2. * dots + centroid_norms;
       } else {
         dists = -dots;
@@ -184,13 +183,6 @@ class KMeans {
   inline int get_iters() const { return _iters; }
 
   /**
-   * @brief Get whether Euclidean distance is used as the dissimilarity measure
-   *
-   * @return bool
-   */
-  inline bool get_euclidean() const { return _euclidean; }
-
-  /**
    * @brief Get whether balanced k-means is used
    *
    * @return bool
@@ -214,7 +206,7 @@ class KMeans {
   /* Assign each data point to its nearest cluster */
   void assign_clusters(const Eigen::Map<const RowMatrix> &train_mat, const Vector &data_norms,
                        const int num_threads) {
-    if (_euclidean) {
+    if (_distance == L2) {
       Eigen::VectorXf centroid_norms = _centroids.rowwise().squaredNorm();
 #ifdef _OPENMP
 #pragma omp parallel for num_threads(num_threads)
@@ -270,7 +262,7 @@ class KMeans {
 
   void postprocess_centroids() {
     /* normalize centroids if using spherical k-means */
-    if (!_euclidean) {
+    if (_distance == IP) {
       for (int j = 0; j < _n_clusters; ++j) {
         _centroids.row(j).array() /= _centroids.row(j).norm();
       }
@@ -321,7 +313,7 @@ class KMeans {
   float cost(const Eigen::Map<const RowMatrix> &train_mat) {
     float total_cost = 0;
 
-    if (_euclidean) {
+    if (_distance == L2) {
       for (int i = 0; i < train_mat.rows(); ++i) {
         total_cost += (train_mat.row(i) - _centroids.row(_assignments[i])).squaredNorm();
       }
@@ -367,7 +359,7 @@ class KMeans {
 
         if (n_old > 0) {
           _centroids.row(old) = unnormalized_centroids.row(old).array() / (n_old - 1);
-          if (_euclidean) {
+          if (_distance == L2) {
             centroid_norms(old) = _centroids.row(old).squaredNorm();
           } else {
             _centroids.row(old).array() /= _centroids.row(old).norm();
@@ -377,7 +369,7 @@ class KMeans {
         _cluster_sizes[old] -= 1;
 
         Vector dists;
-        if (_euclidean) {
+        if (_distance == L2) {
           Vector dots = train_mat.row(i) * _centroids.transpose();
           dists = (centroid_norms - 2 * dots).array() + data_norms(i);
         } else {
@@ -408,7 +400,7 @@ class KMeans {
         _centroids.row(minIndex) =
             unnormalized_centroids.row(minIndex).array() / _cluster_sizes[minIndex];
 
-        if (_euclidean) {
+        if (_distance == L2) {
           centroid_norms(minIndex) = _centroids.row(minIndex).squaredNorm();
         } else {
           _centroids.row(minIndex).array() /= _centroids.row(minIndex).norm();
@@ -438,7 +430,7 @@ class KMeans {
 
   const int _iters;
   const int _n_clusters;
-  const bool _euclidean;
+  const Distance _distance;
   const bool _balanced;
   const int _max_balance_diff;
   const float _penalty_factor;

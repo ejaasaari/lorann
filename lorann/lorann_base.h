@@ -1,9 +1,14 @@
 #pragma once
 
+#include <simsimd/simsimd.h>
+
+#include <cstring>
+#include <memory>
 #include <stdexcept>
 #include <vector>
 
 #include "clustering.h"
+#include "detail/detail.h"
 #include "serialization.h"
 #include "utils.h"
 
@@ -15,19 +20,21 @@
 
 namespace Lorann {
 
+template <typename T>
 class LorannBase {
  public:
-  LorannBase(float *data, int m, int d, int n_clusters, int global_dim, int rank, int train_size,
-             bool euclidean, bool balanced)
-      : _data(data),
+  LorannBase(T *data, int m, int d, int n_clusters, int global_dim, int rank, int train_size,
+             Distance distance, bool balanced, bool copy)
+      : _data(nullptr, [](T *) { /* will be set properly below */ }),
         _n_samples(m),
         _dim(d),
         _n_clusters(n_clusters),
         _global_dim(global_dim <= 0 ? d : std::min(global_dim, d)),
         _max_rank(std::min(rank, d)),
         _train_size(train_size),
-        _euclidean(euclidean),
-        _balanced(balanced) {
+        _distance(distance),
+        _balanced(balanced),
+        _copy(copy) {
     if (d < 64) {
       throw std::invalid_argument(
           "LoRANN is meant for high-dimensional data: the dimensionality should be at least 64.");
@@ -37,6 +44,14 @@ class LorannBase {
     LORANN_ENSURE_POSITIVE(n_clusters);
     LORANN_ENSURE_POSITIVE(rank);
     LORANN_ENSURE_POSITIVE(train_size);
+
+    if (!copy) {
+      _data = std::unique_ptr<T[], void (*)(T *)>(data, [](T *) { /* no-op for external data */ });
+    } else {
+      const int width = d / detail::Traits<T>::dim_divisor;
+      _data = make_aligned_array<T>(m * width);
+      std::memcpy(_data.get(), data, m * width * sizeof(T));
+    }
   }
 
   /**
@@ -61,27 +76,6 @@ class LorannBase {
   inline int get_n_clusters() const { return _n_clusters; }
 
   /**
-   * @brief Get whether the index uses the Euclidean distance as the dissimilarity measure.
-   *
-   * @return bool
-   */
-  inline bool get_euclidean() const { return _euclidean; }
-
-  /**
-   * @brief Get a pointer to a vector in the index.
-   *
-   * @param idx The index to the vector.
-   * @param out The output buffer.
-   */
-  inline void get_vector(const int idx, float *out) {
-    if (idx < 0 || idx >= _n_samples) {
-      throw std::invalid_argument("Invalid index");
-    }
-
-    std::memcpy(out, _data + idx * _dim, _dim);
-  }
-
-  /**
    * @brief Compute the dissimilarity between two vectors.
    *
    * @param u First vector
@@ -89,13 +83,17 @@ class LorannBase {
 
    * @return float The dissimilarity
    */
-  inline float get_dissimilarity(const float *u, const float *v) {
-    if (_euclidean) {
-      return squared_euclidean(u, v, _dim);
+  inline lorann_dist_t get_dissimilarity(const T *u, const T *v) {
+    const int width = _dim / detail::Traits<T>::dim_divisor;
+
+    if (_distance == L2) {
+      return detail::Traits<T>::squared_euclidean(u, v, width);
     } else {
-      return -dot_product(u, v, _dim);
+      return -detail::Traits<T>::dot_product(u, v, width);
     }
   }
+
+  inline int get_type_marker() { return detail::Traits<T>::type_marker; }
 
   /**
    * @brief Build the index.
@@ -107,14 +105,15 @@ class LorannBase {
    * @param num_threads Number of CPU threads to use (set to -1 to use all cores)
    */
   void build(const bool approximate = true, const bool verbose = false, int num_threads = -1) {
-    build(_data, _n_samples, approximate, verbose, num_threads);
+    build(_data.get(), _n_samples, approximate, verbose, num_threads);
   }
 
-  virtual void build(const float *query_data, const int query_n, const bool approximate,
+  virtual void build(const T *query_data, const int query_n, const bool approximate,
                      const bool verbose, int num_threads) {}
 
-  virtual void search(const float *data, const int k, const int clusters_to_search,
-                      const int points_to_rerank, int *idx_out, float *dist_out = nullptr) const {}
+  virtual void search(const T *data, const int k, const int clusters_to_search,
+                      const int points_to_rerank, int *idx_out,
+                      lorann_dist_t *dist_out = nullptr) const {}
 
   virtual ~LorannBase() {}
 
@@ -126,17 +125,19 @@ class LorannBase {
    * @param out The index output array of length k
    * @param dist_out The (optional) distance output array of length k
    */
-  void exact_search(const float *q, int k, int *out, float *dist_out = nullptr) const {
-    Vector dist(_n_samples);
+  void exact_search(const T *q, int k, int *out, lorann_dist_t *dist_out = nullptr) const {
+    DistVector dist(_n_samples);
 
-    const float *data_ptr = _data;
-    if (_euclidean) {
+    const T *data_ptr = _data.get();
+    const int width = _dim / detail::Traits<T>::dim_divisor;
+
+    if (_distance == L2) {
       for (int i = 0; i < _n_samples; ++i) {
-        dist[i] = squared_euclidean(q, data_ptr + i * _dim, _dim);
+        dist[i] = detail::Traits<T>::squared_euclidean(q, data_ptr + i * width, width);
       }
     } else {
       for (int i = 0; i < _n_samples; ++i) {
-        dist[i] = -dot_product(q, data_ptr + i * _dim, _dim);
+        dist[i] = -detail::Traits<T>::dot_product(q, data_ptr + i * width, width);
       }
     }
 
@@ -154,30 +155,28 @@ class LorannBase {
       k = _n_samples;
     }
 
-    select_k(k, out, _n_samples, NULL, dist.data(), dist_out, true);
+    select_k<lorann_dist_t>(k, out, _n_samples, NULL, dist.data(), dist_out, true);
     for (int i = k; i < final_k; ++i) {
       out[i] = -1;
-      if (dist_out) dist_out[i] = std::numeric_limits<float>::infinity();
+      if (dist_out) dist_out[i] = std::numeric_limits<lorann_dist_t>::infinity();
     }
   }
 
  protected:
   /* default constructor should only be used for serialization */
-  LorannBase() = default;
+  LorannBase() : _data(nullptr, [](T *) {}) {}
 
-  void select_final(const float *x, const int k, const int points_to_rerank, const int s,
-                    const int *all_idxs, const float *all_distances, int *idx_out,
-                    float *dist_out) const {
+  void select_final(const T *orig, const float *x, const int k, const int points_to_rerank,
+                    const int s, const int *all_idxs, const float *all_distances, int *idx_out,
+                    lorann_dist_t *dist_out) const {
     const int n_selected = std::min(std::max(k, points_to_rerank), s);
 
     if (points_to_rerank == 0) {
-      select_k(n_selected, idx_out, s, all_idxs, all_distances, dist_out, true);
+      select_k<float, lorann_dist_t>(n_selected, idx_out, s, all_idxs, all_distances, dist_out,
+                                     true);
 
-      if (dist_out && _euclidean) {
-        float query_norm = 0;
-        for (int i = 0; i < _dim; ++i) {
-          query_norm += x[i] * x[i];
-        }
+      if (dist_out && _distance == L2) {
+        lorann_dist_t query_norm = detail::Traits<float>::dot_product(x, x, _dim);
         for (int i = 0; i < n_selected; ++i) {
           dist_out[i] += query_norm;
         }
@@ -185,30 +184,32 @@ class LorannBase {
 
       for (int i = n_selected; i < k; ++i) {
         idx_out[i] = -1;
-        if (dist_out) dist_out[i] = std::numeric_limits<float>::infinity();
+        if (dist_out) dist_out[i] = std::numeric_limits<lorann_dist_t>::infinity();
       }
 
       return;
     }
 
     std::vector<int> final_select(n_selected);
-    select_k(n_selected, final_select.data(), s, all_idxs, all_distances);
-    reorder_exact(x, k, final_select, idx_out, dist_out);
+    select_k<float>(n_selected, final_select.data(), s, all_idxs, all_distances);
+    reorder_exact(orig, k, final_select, idx_out, dist_out);
   }
 
-  void reorder_exact(const float *q, int k, const std::vector<int> &in, int *out,
-                     float *dist_out = nullptr) const {
+  void reorder_exact(const T *q, int k, const std::vector<int> &in, int *out,
+                     lorann_dist_t *dist_out = nullptr) const {
     const int n = in.size();
-    Vector dist(n);
+    DistVector dist(n);
 
-    const float *data_ptr = _data;
-    if (_euclidean) {
+    const T *data_ptr = _data.get();
+    const int width = _dim / detail::Traits<T>::dim_divisor;
+
+    if (_distance == L2) {
       for (int i = 0; i < n; ++i) {
-        dist[i] = squared_euclidean(q, data_ptr + in[i] * _dim, _dim);
+        dist[i] = detail::Traits<T>::squared_euclidean(q, data_ptr + in[i] * width, width);
       }
     } else {
       for (int i = 0; i < n; ++i) {
-        dist[i] = dot_product(q, data_ptr + in[i] * _dim, _dim);
+        dist[i] = -detail::Traits<T>::dot_product(q, data_ptr + in[i] * width, width);
       }
     }
 
@@ -226,10 +227,10 @@ class LorannBase {
       k = n;
     }
 
-    select_k(k, out, in.size(), in.data(), dist.data(), dist_out, true);
+    select_k<lorann_dist_t>(k, out, in.size(), in.data(), dist.data(), dist_out, true);
     for (int i = k; i < final_k; ++i) {
       out[i] = -1;
-      if (dist_out) dist_out[i] = std::numeric_limits<float>::infinity();
+      if (dist_out) dist_out[i] = std::numeric_limits<lorann_dist_t>::infinity();
     }
   }
 
@@ -256,10 +257,13 @@ class LorannBase {
 
   template <class Archive>
   void save(Archive &ar) const {
+    const int width = _dim / detail::Traits<T>::dim_divisor;
+
     ar(_n_samples);
     ar(_dim);
-    ar(cereal::binary_data(_data, sizeof(float) * _n_samples * _dim), _n_clusters, _global_dim,
-       _max_rank, _train_size, _euclidean, _balanced, _cluster_map, _global_centroid_norms);
+    ar(cereal::binary_data(_data.get(), sizeof(T) * _n_samples * width), _n_clusters, _global_dim,
+       _max_rank, _train_size, static_cast<int>(_distance), _balanced, _cluster_map,
+       _global_centroid_norms, _data_norms);
   }
 
   template <class Archive>
@@ -267,26 +271,23 @@ class LorannBase {
     ar(_n_samples);
     ar(_dim);
 
-    _owned_data = Vector(_n_samples * _dim);
-    _data = _owned_data.data();
+    const int width = _dim / detail::Traits<T>::dim_divisor;
+    _data = make_aligned_array<T>(_n_samples * width);
 
-    ar(cereal::binary_data(_data, sizeof(float) * _n_samples * _dim), _n_clusters, _global_dim,
-       _max_rank, _train_size, _euclidean, _balanced, _cluster_map, _global_centroid_norms);
+    int distance_tmp;
+    ar(cereal::binary_data(_data.get(), sizeof(T) * _n_samples * width), _n_clusters, _global_dim,
+       _max_rank, _train_size, distance_tmp, _balanced, _cluster_map, _global_centroid_norms,
+       _data_norms);
 
+    _distance = static_cast<Distance>(distance_tmp);
     _cluster_sizes = Eigen::VectorXi(_n_clusters);
 
     for (int i = 0; i < _n_clusters; ++i) {
       _cluster_sizes(i) = static_cast<int>(_cluster_map[i].size());
     }
-
-    if (_euclidean) {
-      Eigen::Map<RowMatrix> train_mat(_data, _n_samples, _dim);
-      _data_norms = train_mat.rowwise().squaredNorm();
-    }
   }
 
-  float *_data;
-  Vector _owned_data;
+  std::unique_ptr<T[], void (*)(T *)> _data;
 
   int _n_samples;
   int _dim;
@@ -294,8 +295,9 @@ class LorannBase {
   int _global_dim;
   int _max_rank; /* max rank (r) for the RRR parameter matrices */
   int _train_size;
-  bool _euclidean;
+  Distance _distance;
   bool _balanced;
+  bool _copy;
 
   /* vector of points assigned to a cluster, for each cluster */
   std::vector<std::vector<int>> _cluster_map;

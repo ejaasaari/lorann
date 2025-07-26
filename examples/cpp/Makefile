@@ -1,30 +1,32 @@
-UNAME_S := $(shell uname -s)
-
-# On macOS: prefer Homebrew's LLVM if it exists ----------------
-ifeq ($(UNAME_S),Darwin)
-    HOMEBREW_LLVM_PREFIX := $(shell brew --prefix llvm 2>/dev/null)
-    ifneq ($(HOMEBREW_LLVM_PREFIX),)
-        CXX = $(HOMEBREW_LLVM_PREFIX)/bin/clang++
-        CC  = $(HOMEBREW_LLVM_PREFIX)/bin/clang
-        LLVM_LIBDIR := $(HOMEBREW_LLVM_PREFIX)/lib
-        OPENMP_LDFLAGS := -L$(LLVM_LIBDIR) -Wl,-rpath,$(LLVM_LIBDIR)
-    endif
-endif
-
 CXX ?= c++
 CC  ?= cc
 
-ifeq ($(findstring clang,$(shell $(CXX) --version)),clang)
-    OPENMP_FLAGS  := -fopenmp
-    OPENMP_LIB    := -lomp
+ifeq ($(findstring Apple clang,$(shell $(CXX) --version)),Apple clang)
+    OPENMP_FLAGS := -Xpreprocessor -fopenmp -I/opt/homebrew/opt/libomp/include
+    OPENMP_LIB   := -L/opt/homebrew/opt/libomp/lib -lomp
 else
-    OPENMP_FLAGS  := -fopenmp
-    OPENMP_LIB    := -lgomp
+    OPENMP_FLAGS := -fopenmp
+    ifeq ($(findstring clang,$(shell $(CXX) --version)),clang)
+        OPENMP_LIB := -fopenmp -lomp
+    else
+        OPENMP_LIB := -fopenmp
+    endif
 endif
 
-CXXFLAGS += -std=c++17 -O3 -march=native -DNDEBUG \
+ARCH := $(shell uname -m)
+ifeq ($(ARCH),x86_64)
+    ARCH_FLAGS = -march=native -mtune=native
+else ifeq ($(ARCH),aarch64)
+    ARCH_FLAGS = -mcpu=native
+else ifeq ($(ARCH),arm64)
+    ARCH_FLAGS = -mcpu=native
+else
+    $(error Unsupported architecture: $(ARCH))
+endif
+
+CXXFLAGS += -std=c++17 -O3 $(ARCH_FLAGS) -DNDEBUG \
+            -Wno-unknown-pragmas -Wno-unknown-warning-option -Wno-unused-function \
             -I../../lorann -flax-vector-conversions $(OPENMP_FLAGS)
-LDFLAGS  += $(OPENMP_LDFLAGS)
 LDLIBS   += $(OPENMP_LIB)
 
 all: example
@@ -34,11 +36,13 @@ example: example.cpp
 
 prepare-data:
 	@echo "Preparing data…"
-	@wget "https://dl.fbaipublicfiles.com/fasttext/vectors-english/wiki-news-300d-1M.vec.zip" -q --show-progress
-	@unzip -q wiki-news-300d-1M.vec.zip
-	@rm wiki-news-300d-1M.vec.zip
+	@mkdir mnist
+	@wget "https://ossci-datasets.s3.amazonaws.com/mnist/train-images-idx3-ubyte.gz" -O mnist/train-images-idx3-ubyte.gz -q --show-progress
+	@wget "https://ossci-datasets.s3.amazonaws.com/mnist/t10k-images-idx3-ubyte.gz" -O mnist/t10k-images-idx3-ubyte.gz -q --show-progress
+	@gunzip mnist/train-images-idx3-ubyte.gz
+	@gunzip mnist/t10k-images-idx3-ubyte.gz
 
 clean:
-	@rm -f example wiki-news-300d-1M.vec index.bin
+	@rm -rf example mnist index.bin
 
 .PHONY: all prepare-data clean

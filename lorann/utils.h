@@ -9,6 +9,10 @@
 #include <unordered_set>
 #include <vector>
 
+#ifdef _MSC_VER
+#include <malloc.h>
+#endif
+
 #include "miniselect/pdqselect.h"
 
 #if defined(__ARM_NEON) || defined(__ARM_NEON__)
@@ -29,14 +33,45 @@
 #define RSVD_OVERSAMPLES 10
 #define RSVD_N_ITER 4
 
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#define LORANN_MIN(a, b) ((a) < (b) ? (a) : (b))
 
 #define LORANN_ENSURE_POSITIVE(x)                               \
   if ((x) <= 0) {                                               \
     throw std::invalid_argument("Value must be positive: " #x); \
   }
 
+#ifndef LORANN_RESTRICT
+#if defined(__GNUC__) || defined(__clang__)
+#define LORANN_RESTRICT __restrict__
+#elif defined(_MSC_VER)
+#define LORANN_RESTRICT __restrict
+#elif defined(__INTEL_COMPILER)
+#define LORANN_RESTRICT __restrict__
+#else
+#define LORANN_RESTRICT
+#endif
+#endif
+
+#ifndef LORANN_ALWAYS_INLINE
+#if __has_cpp_attribute(gnu::always_inline)
+#define LORANN_ALWAYS_INLINE [[gnu::always_inline]]
+#elif defined(__GNUC__) || defined(__clang__)
+#define LORANN_ALWAYS_INLINE __attribute__((always_inline))
+#elif defined(_MSC_VER)
+#define LORANN_ALWAYS_INLINE __forceinline
+#else
+#define LORANN_ALWAYS_INLINE
+#endif
+#endif
+
 namespace Lorann {
+
+enum Distance {
+  IP = 0,
+  L2 = 1,
+
+  HAMMING = L2
+};
 
 typedef Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor> ColMatrix;
 typedef Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> RowMatrix;
@@ -49,251 +84,60 @@ typedef Eigen::RowVectorXf Vector;
 typedef Eigen::Matrix<int32_t, 1, Eigen::Dynamic> VectorInt;
 typedef Eigen::Matrix<int8_t, 1, Eigen::Dynamic> VectorInt8;
 typedef Eigen::Matrix<uint8_t, 1, Eigen::Dynamic> VectorUInt8;
+typedef Eigen::Matrix<lorann_dist_t, 1, Eigen::Dynamic> DistVector;
 
+struct MappedMatrix {
+  Eigen::Map<const RowMatrix> view;
+  std::shared_ptr<float[]> owner;
+
+  MappedMatrix(const float *p, const Eigen::Index n, const Eigen::Index d,
+               std::shared_ptr<float[]> own = {})
+      : view{p, n, d}, owner{std::move(own)} {}
+};
+
+template <typename T>
 struct ArgsortComparator {
-  const float *vals;
+  const T *vals;
   bool operator()(const int a, const int b) const { return vals[a] < vals[b]; }
 };
 
-#if defined(__AVX512F__)
-static inline float dot_product(const float *x1, const float *x2, size_t length) {
-  __m512 sum = _mm512_setzero_ps();
-  size_t i = 0;
-  for (; i + 16 <= length; i += 16) {
-    __m512 v1 = _mm512_loadu_ps(x1 + i);
-    __m512 v2 = _mm512_loadu_ps(x2 + i);
-    sum = _mm512_fmadd_ps(v1, v2, sum);
+template <typename T>
+inline std::unique_ptr<T[], void (*)(T *)> make_aligned_array(std::size_t count,
+                                                              std::size_t alignment = 64) {
+  std::size_t bytes = count * sizeof(T);
+  std::size_t aligned_bytes = ((bytes + alignment - 1) / alignment) * alignment;
+
+#ifdef _MSC_VER
+  T *aligned_ptr = static_cast<T *>(_aligned_malloc(aligned_bytes, alignment));
+  if (!aligned_ptr) {
+    throw std::bad_alloc();
   }
-  if (i < length) {
-    __m512 v1 = _mm512_maskz_loadu_ps((1 << (length - i)) - 1, x1 + i);
-    __m512 v2 = _mm512_maskz_loadu_ps((1 << (length - i)) - 1, x2 + i);
-    sum = _mm512_fmadd_ps(v1, v2, sum);
-  }
-
-  auto sumh = _mm256_add_ps(_mm512_castps512_ps256(sum), _mm512_extractf32x8_ps(sum, 1));
-  auto sumhh = _mm_add_ps(_mm256_castps256_ps128(sumh), _mm256_extractf128_ps(sumh, 1));
-  auto tmp1 = _mm_add_ps(sumhh, _mm_movehl_ps(sumhh, sumhh));
-  auto tmp2 = _mm_add_ps(tmp1, _mm_movehdup_ps(tmp1));
-  return _mm_cvtss_f32(tmp2);
-}
-#elif defined(__FMA__)
-static inline float dot_product(const float *x1, const float *x2, size_t length) {
-  __m256 sum = _mm256_setzero_ps();
-
-  size_t i;
-  for (i = 0; i + 7 < length; i += 8) {
-    __m256 v1 = _mm256_load_ps(x1 + i);
-    __m256 v2 = _mm256_load_ps(x2 + i);
-    sum = _mm256_fmadd_ps(v1, v2, sum);
-  }
-
-  __attribute__((aligned(32))) float temp[8];
-  _mm256_store_ps(temp, sum);
-  float result = temp[0] + temp[1] + temp[2] + temp[3] + temp[4] + temp[5] + temp[6] + temp[7];
-
-  for (; i < length; ++i) {
-    result += x1[i] * x2[i];
-  }
-
-  return result;
-}
-#elif defined(__AVX2__)
-static inline float dot_product(const float *x1, const float *x2, size_t length) {
-  __m256 sum = _mm256_setzero_ps();
-
-  size_t i;
-  for (i = 0; i + 7 < length; i += 8) {
-    __m256 v1 = _mm256_load_ps(x1 + i);
-    __m256 v2 = _mm256_load_ps(x2 + i);
-    __m256 prod = _mm256_mul_ps(v1, v2);
-    sum = _mm256_add_ps(sum, prod);
-  }
-
-  __attribute__((aligned(32))) float temp[8];
-  _mm256_store_ps(temp, sum);
-  float result = temp[0] + temp[1] + temp[2] + temp[3] + temp[4] + temp[5] + temp[6] + temp[7];
-
-  for (; i < length; ++i) {
-    result += x1[i] * x2[i];
-  }
-
-  return result;
-}
-#elif defined(__ARM_FEATURE_SVE)
-static inline float dot_product(const float *x1, const float *x2, size_t length) {
-  int64_t i = 0;
-  svfloat32_t sum = svdup_n_f32(0);
-  while (i + svcntw() <= length) {
-    svfloat32_t in1 = svld1_f32(svptrue_b32(), x1 + i);
-    svfloat32_t in2 = svld1_f32(svptrue_b32(), x2 + i);
-    sum = svmad_f32_m(svptrue_b32(), in1, in2, sum);
-    i += svcntw();
-  }
-  svbool_t while_mask = svwhilelt_b32(i, length);
-  do {
-    svfloat32_t in1 = svld1_f32(while_mask, x1 + i);
-    svfloat32_t in2 = svld1_f32(while_mask, x2 + i);
-    sum = svmad_f32_m(svptrue_b32(), in1, in2, sum);
-    i += svcntw();
-    while_mask = svwhilelt_b32(i, length);
-  } while (svptest_any(svptrue_b32(), while_mask));
-
-  return svaddv_f32(svptrue_b32(), sum);
-}
-#elif defined(__ARM_NEON) || defined(__ARM_NEON__)
-static inline float dot_product(const float *x1, const float *x2, size_t length) {
-  float32x4_t ab_vec = vdupq_n_f32(0);
-  size_t i = 0;
-  for (; i + 4 <= length; i += 4) {
-    float32x4_t a_vec = vld1q_f32(x1 + i);
-    float32x4_t b_vec = vld1q_f32(x2 + i);
-    ab_vec = vfmaq_f32(ab_vec, a_vec, b_vec);
-  }
-  float ab = vaddvq_f32(ab_vec);
-  for (; i < length; ++i) {
-    ab += x1[i] * x2[i];
-  }
-  return ab;
-}
+  return {aligned_ptr, [](T *ptr) { _aligned_free(ptr); }};
 #else
-static inline float dot_product(const float *x1, const float *x2, size_t length) {
-  float sum = 0;
-  for (size_t i = 0; i < length; ++i) {
-    sum += x1[i] * x2[i];
+  T *aligned_ptr = static_cast<T *>(std::aligned_alloc(alignment, aligned_bytes));
+  if (!aligned_ptr) {
+    throw std::bad_alloc();
   }
-  return sum;
-}
+  return {aligned_ptr, [](T *ptr) { std::free(ptr); }};
 #endif
-
-#if defined(__AVX512F__)
-static inline float squared_euclidean(const float *x1, const float *x2, size_t length) {
-  __m512 sum = _mm512_setzero_ps();
-  size_t i = 0;
-  for (; i + 16 <= length; i += 16) {
-    __m512 v1 = _mm512_loadu_ps(x1 + i);
-    __m512 v2 = _mm512_loadu_ps(x2 + i);
-    __m512 diff = _mm512_sub_ps(v1, v2);
-    sum = _mm512_fmadd_ps(diff, diff, sum);
-  }
-  if (i < length) {
-    __m512 v1 = _mm512_maskz_loadu_ps((1 << (length - i)) - 1, x1 + i);
-    __m512 v2 = _mm512_maskz_loadu_ps((1 << (length - i)) - 1, x2 + i);
-    __m512 diff = _mm512_sub_ps(v1, v2);
-    sum = _mm512_fmadd_ps(diff, diff, sum);
-  }
-
-  __m256 sumh = _mm256_add_ps(_mm512_castps512_ps256(sum), _mm512_extractf32x8_ps(sum, 1));
-  __m128 sumhh = _mm_add_ps(_mm256_castps256_ps128(sumh), _mm256_extractf128_ps(sumh, 1));
-  __m128 tmp1 = _mm_add_ps(sumhh, _mm_movehl_ps(sumhh, sumhh));
-  __m128 tmp2 = _mm_add_ps(tmp1, _mm_movehdup_ps(tmp1));
-  return _mm_cvtss_f32(tmp2);
 }
-#elif defined(__FMA__)
-static inline float squared_euclidean(const float *x1, const float *x2, size_t length) {
-  __m256 sum = _mm256_setzero_ps();
 
-  size_t i;
-  for (i = 0; i + 7 < length; i += 8) {
-    __m256 v1 = _mm256_load_ps(x1 + i);
-    __m256 v2 = _mm256_load_ps(x2 + i);
-    __m256 diff = _mm256_sub_ps(v1, v2);
-    sum = _mm256_fmadd_ps(diff, diff, sum);
-  }
-
-  __attribute__((aligned(32))) float temp[8];
-  _mm256_store_ps(temp, sum);
-  float result = temp[0] + temp[1] + temp[2] + temp[3] + temp[4] + temp[5] + temp[6] + temp[7];
-
-  for (; i < length; ++i) {
-    float diff = x1[i] - x2[i];
-    result += diff * diff;
-  }
-
-  return result;
+template <typename T>
+inline std::shared_ptr<T[]> make_aligned_shared_array(std::size_t count,
+                                                      std::size_t alignment = 64) {
+  auto unique_ptr = make_aligned_array<T>(count, alignment);
+  T *raw_ptr = unique_ptr.release();
+  return {raw_ptr, [](T *ptr) { std::free(ptr); }};
 }
-#elif defined(__AVX2__)
-static inline float squared_euclidean(const float *x1, const float *x2, size_t length) {
-  __m256 sum = _mm256_setzero_ps();
-
-  size_t i;
-  for (i = 0; i + 7 < length; i += 8) {
-    __m256 v1 = _mm256_load_ps(x1 + i);
-    __m256 v2 = _mm256_load_ps(x2 + i);
-    __m256 diff = _mm256_sub_ps(v1, v2);
-    __m256 squared = _mm256_mul_ps(diff, diff);
-    sum = _mm256_add_ps(sum, squared);
-  }
-
-  __attribute__((aligned(32))) float temp[8];
-  _mm256_store_ps(temp, sum);
-  float result = temp[0] + temp[1] + temp[2] + temp[3] + temp[4] + temp[5] + temp[6] + temp[7];
-
-  for (; i < length; ++i) {
-    float diff = x1[i] - x2[i];
-    result += diff * diff;
-  }
-
-  return result;
-}
-#elif defined(__ARM_FEATURE_SVE)
-static inline float dot_product(const float *x1, const float *x2, size_t length) {
-  int64_t i = 0;
-  svfloat32_t sum = svdup_n_f32(0);
-  while (i + svcntw() <= length) {
-    svfloat32_t in1 = svld1_f32(svptrue_b32(), x1 + i);
-    svfloat32_t in2 = svld1_f32(svptrue_b32(), x2 + i);
-    svfloat32_t diff = svsub_f32_m(svptrue_b32(), in1, in2);
-    sum = svmla_f32_m(svptrue_b32(), sum, diff, diff);
-    i += svcntw();
-  }
-  svbool_t while_mask = svwhilelt_b32(i, length);
-  do {
-    svfloat32_t in1 = svld1_f32(while_mask, x1 + i);
-    svfloat32_t in2 = svld1_f32(while_mask, x2 + i);
-    svfloat32_t diff = svsub_f32_m(while_mask, in1, in2);
-    sum = svmla_f32_m(while_mask, sum, diff, diff);
-    i += svcntw();
-    while_mask = svwhilelt_b32(i, length);
-  } while (svptest_any(svptrue_b32(), while_mask));
-
-  return svaddv_f32(svptrue_b32(), sum);
-}
-#elif defined(__ARM_NEON) || defined(__ARM_NEON__)
-static inline float squared_euclidean(const float *x1, const float *x2, size_t length) {
-  float32x4_t diff_sum = vdupq_n_f32(0);
-  size_t i = 0;
-  for (; i + 4 <= length; i += 4) {
-    float32x4_t a_vec = vld1q_f32(x1 + i);
-    float32x4_t b_vec = vld1q_f32(x2 + i);
-    float32x4_t diff_vec = vsubq_f32(a_vec, b_vec);
-    diff_sum = vfmaq_f32(diff_sum, diff_vec, diff_vec);
-  }
-  float sqr_dist = vaddvq_f32(diff_sum);
-  for (; i < length; ++i) {
-    float diff = x1[i] - x2[i];
-    sqr_dist += diff * diff;
-  }
-  return sqr_dist;
-}
-#else
-static inline float squared_euclidean(const float *x1, const float *x2, size_t length) {
-  float sqr_dist = 0;
-  for (size_t i = 0; i < length; ++i) {
-    float diff = x1[i] - x2[i];
-    sqr_dist += diff * diff;
-  }
-  return sqr_dist;
-}
-#endif
 
 #if defined(__AVX2__)
-static inline int32_t horizontal_add(__m128i const a) {
+LORANN_ALWAYS_INLINE static inline int32_t horizontal_add(__m128i const a) {
   const __m128i sum1 = _mm_hadd_epi32(a, a);
   const __m128i sum2 = _mm_hadd_epi32(sum1, sum1);
   return _mm_cvtsi128_si32(sum2);
 }
 
-static inline int32_t horizontal_add(__m256i const a) {
+LORANN_ALWAYS_INLINE static inline int32_t horizontal_add(__m256i const a) {
   const __m128i sum1 = _mm_add_epi32(_mm256_extracti128_si256(a, 1), _mm256_castsi256_si128(a));
   const __m128i sum2 = _mm_add_epi32(sum1, _mm_unpackhi_epi64(sum1, sum1));
   const __m128i sum3 = _mm_add_epi32(sum2, _mm_shuffle_epi32(sum2, 1));
@@ -302,7 +146,8 @@ static inline int32_t horizontal_add(__m256i const a) {
 #endif
 
 #if defined(__AVX2__)
-static inline void add_inplace(const float *__restrict__ v, float *__restrict__ r, const size_t n) {
+static inline void add_inplace(const float *LORANN_RESTRICT v, float *LORANN_RESTRICT r,
+                               const size_t n) {
   size_t i = 0;
   for (; i + 8 <= n; i += 8) {
     __m256 v_vec = _mm256_loadu_ps(&v[i]);
@@ -315,8 +160,24 @@ static inline void add_inplace(const float *__restrict__ v, float *__restrict__ 
     r[i] += v[i];
   }
 }
+#elif defined(__ARM_NEON) || defined(__ARM_NEON__)
+static inline void add_inplace(const float *LORANN_RESTRICT v, float *LORANN_RESTRICT r,
+                               const size_t n) {
+  size_t i = 0;
+  for (; i + 4 <= n; i += 4) {
+    float32x4_t rv = vld1q_f32(v + i);
+    float32x4_t rr = vld1q_f32(r + i);
+    rr = vaddq_f32(rr, rv);
+    vst1q_f32(r + i, rr);
+  }
+
+  for (; i < n; ++i) {
+    r[i] += v[i];
+  }
+}
 #else
-static inline void add_inplace(const float *v, float *r, const size_t n) {
+static inline void add_inplace(const float *LORANN_RESTRICT v, float *LORANN_RESTRICT r,
+                               const size_t n) {
   for (size_t i = 0; i < n; ++i) {
     r[i] += v[i];
   }
@@ -343,8 +204,10 @@ static inline float compute_quantization_factor(const float *v, const int len, c
   return absmax > 0 ? ((1 << (bits - 1)) - 1) / absmax : 0;
 }
 
+template <typename BaseDist, typename OutDist = BaseDist>
 static void select_k(const int k, int *labels, const int k_base, const int *base_labels,
-                     const float *base_distances, float *distances = nullptr, bool sorted = false) {
+                     const BaseDist *base_distances, OutDist *distances = nullptr,
+                     bool sorted = false) {
   if (k >= k_base) {
     if (base_labels != NULL) {
       for (int i = 0; i < k_base; ++i) {
@@ -370,7 +233,7 @@ static void select_k(const int k, int *labels, const int k_base, const int *base
     perm[i] = i;
   }
 
-  ArgsortComparator comp = {base_distances};
+  ArgsortComparator<BaseDist> comp = {base_distances};
 
   if (sorted) {
     miniselect::pdqpartial_sort_branchless(perm.begin(), perm.begin() + k, perm.end(), comp);
@@ -455,12 +318,11 @@ static inline Eigen::MatrixXf compute_V(const Eigen::MatrixXf &X, const int rank
   std::mt19937_64 randomEngine{};
   Rsvd::RandomizedSvd<Eigen::MatrixXf, std::mt19937_64, Rsvd::SubspaceIterationConditioner::Lu>
       rsvd(randomEngine);
-  rsvd.compute(X, std::min(static_cast<long>(X.cols()), static_cast<long>(rank)),
-                RSVD_OVERSAMPLES, RSVD_N_ITER);
+  rsvd.compute(X, std::min(static_cast<long>(X.cols()), static_cast<long>(rank)), RSVD_OVERSAMPLES,
+               RSVD_N_ITER);
 
   Eigen::MatrixXf V = Eigen::MatrixXf::Zero(X.cols(), rank);
-  const long rows =
-      std::min(static_cast<long>(X.cols()), static_cast<long>(rsvd.matrixV().rows()));
+  const long rows = std::min(static_cast<long>(X.cols()), static_cast<long>(rsvd.matrixV().rows()));
   const long cols = std::min(static_cast<long>(rank), static_cast<long>(rsvd.matrixV().cols()));
   V.topLeftCorner(rows, cols) = rsvd.matrixV().topLeftCorner(rows, cols);
 

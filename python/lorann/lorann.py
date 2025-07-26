@@ -3,13 +3,15 @@ import numpy.typing as npt
 import lorannlib
 from typing import Optional, Tuple, Union, List
 
+IP = lorannlib.IP
+L2 = lorannlib.L2
+HAMMING = lorannlib.HAMMING
 
-def _check_data_matrix(data: npt.NDArray[np.float32]) -> Tuple[int, int]:
+
+def _check_data_matrix(data: np.ndarray) -> Tuple[int, int]:
     if isinstance(data, np.ndarray):
         if len(data) == 0 or len(data.shape) != 2:
             raise ValueError("The matrix should be non-empty and two-dimensional")
-        if data.dtype != np.float32:
-            raise ValueError("The matrix should have type float32")
         if not data.flags["C_CONTIGUOUS"] or not data.flags["ALIGNED"]:
             raise ValueError("The matrix has to be C_CONTIGUOUS and ALIGNED")
         return data.shape
@@ -17,50 +19,20 @@ def _check_data_matrix(data: npt.NDArray[np.float32]) -> Tuple[int, int]:
         raise ValueError("Data must be an ndarray")
 
 
-class LorannIndex(object):
+class LorannBaseIndex(object):
 
     def __init__(
         self,
-        data: npt.NDArray[np.float32],
+        data: np.ndarray,
         n_clusters: int,
         global_dim: Optional[int],
         quantization_bits: Optional[int] = 8,
         rank: int = 32,
         train_size: int = 5,
-        euclidean: bool = False,
+        distance: int = IP,
         balanced: bool = False,
+        copy: bool = False,
     ) -> None:
-        """
-        Initializes a LorannIndex object. The initializer does not build the actual index.
-
-        Args:
-            data: Index points as an $m \\times d$ numpy array.
-            n_clusters: Number of clusters. In general, for $m$ index points, a good starting point
-                is to set n_clusters as around $\\sqrt{m}$.
-            global_dim: Globally reduced dimension ($s$). Must be either None or an integer that is
-                a multiple of 32. Higher values increase recall but also increase the query latency.
-                In general, a good starting point is to set global_dim = None if $d < 200$,
-                global_dim = 128 if $200 \\leq d \\leq 1000$, and global_dim = 256 if $d > 1000$.
-            quantization_bits: Number of bits used for quantizing the parameter matrices. Must be
-                None, 4, or 8. Defaults to 8. None turns off quantization, and setting
-                quantization_bits = 4 lowers the memory consumption without affecting the query
-                latency but can lead to reduced recall on some data sets.
-            rank: Rank ($r$) of the parameter matrices. Must be 16, 32, or 64 if quantization_bits
-                is not None. Defaults to 32. Rank = 64 is mainly only useful if no exact re-ranking
-                is performed in the query phase.
-            train_size: Number of nearby clusters ($w$) used for training the reduced-rank
-                regression models. Defaults to 5, but lower values can be used if
-                $m \\gtrsim 500 000$ to speed up the index construction.
-            euclidean: Whether to use Euclidean distance instead of (negative) inner product as the
-                dissimilarity measure. Defaults to False.
-            balanced: Whether to use balanced clustering. Defaults to False.
-
-        Raises:
-            ValueError: If the input parameters are invalid.
-
-        Returns:
-            None
-        """
         n_samples, dim = _check_data_matrix(data)
 
         if np.isnan(np.sum(data)):
@@ -82,24 +54,16 @@ class LorannIndex(object):
             if global_dim <= 0 or global_dim % 32:
                 raise ValueError("global_dim must be a multiple of 32")
         elif quantization_bits is None:
-            if global_dim <= 0 or global_dim is None:
+            if global_dim is None or global_dim <= 0:
                 global_dim = dim
             quantization_bits = -1
         else:
             raise ValueError("quantization_bits must be None, 4, or 8")
 
-        self.index = lorannlib.LorannIndex(
-            data,
-            n_samples,
-            dim,
-            quantization_bits,
-            n_clusters,
-            global_dim,
-            rank,
-            train_size,
-            euclidean,
-            balanced,
-        )
+        self.dtype = data.dtype
+        self.data_dim = data.shape[1]
+        self.quantization_bits = quantization_bits
+        self.global_dim = global_dim
 
         self.built = False
 
@@ -109,7 +73,7 @@ class LorannIndex(object):
         verbose: bool = False,
         n_threads: int = -1,
         *,
-        training_queries: Optional[npt.NDArray[np.float32]] = None,
+        training_queries: np.ndarray = None,
     ) -> None:
         """
         Builds the LoRANN index.
@@ -137,9 +101,14 @@ class LorannIndex(object):
             self.index.build(approximate, verbose, n_threads)
         else:
             _, dim = _check_data_matrix(training_queries)
-            if dim != self.dim:
+            if dim != self.data_dim:
                 raise ValueError(
                     "The training query matrix should have the same number of columns as the data matrix"
+                )
+
+            if training_queries.dtype != self.dtype:
+                raise ValueError(
+                    "The training query matrix should have the same dtype as the data matrix"
                 )
 
             self.index.build(approximate, verbose, n_threads, training_queries)
@@ -148,7 +117,7 @@ class LorannIndex(object):
 
     def search(
         self,
-        q: npt.NDArray[np.float32],
+        q: np.ndarray,
         k: int,
         clusters_to_search: int,
         points_to_rerank: int,
@@ -185,8 +154,6 @@ class LorannIndex(object):
         """
         if not self.built:
             raise RuntimeError("Cannot query before building index")
-        if q.dtype != np.float32:
-            raise ValueError("The query matrix should have type float32")
 
         return self.index.search(
             q, k, clusters_to_search, points_to_rerank, return_distances, n_threads
@@ -194,7 +161,7 @@ class LorannIndex(object):
 
     def exact_search(
         self,
-        q: npt.NDArray[np.float32],
+        q: np.ndarray,
         k: int,
         return_distances: bool = False,
         n_threads: int = -1,
@@ -222,9 +189,6 @@ class LorannIndex(object):
             True, returns a tuple where the first element contains the nearest neighbors and the
             second element contains their distances to the query.
         """
-        if q.dtype != np.float32:
-            raise ValueError("The query matrix should have type float32")
-
         return self.index.exact_search(q, k, return_distances, n_threads)
 
     def save(self, fname: str) -> None:
@@ -261,26 +225,11 @@ class LorannIndex(object):
             The loaded LorannIndex object.
         """
         self = cls.__new__(cls)
-        self.index = lorannlib.LorannIndex.load(fname)
+        self.index = lorannlib.load_index(fname)
         self.built = True
         return self
 
-    def get_vector(self, idx: int) -> npt.NDArray[np.float32]:
-        """
-        Retrieves a vector from the index by its index.
-
-        Args:
-            idx: The index of the vector to retrieve.
-
-        Returns:
-            The vector at the specified index.
-
-        Raises:
-            IndexError: If the index is out of bounds.
-        """
-        return self.index.get_vector(idx)
-
-    def get_dissimilarity(self, u: npt.NDArray[np.float32], v: npt.NDArray[np.float32]) -> float:
+    def get_dissimilarity(self, u: np.ndarray, v: np.ndarray) -> float:
         """
         Calculates the dissimilarity between two vectors. The dimensions of the vectors should
         match the dimension of the index.
@@ -295,7 +244,7 @@ class LorannIndex(object):
         Raises:
             ValueError: If the vectors are not of the same dimension as the index.
         """
-        if u.shape[0] != self.dim or v.shape[0] != self.dim:
+        if u.shape[0] != self.data_dim or v.shape[0] != self.data_dim:
             raise ValueError("The dimensionality of u and v should match the index dimension")
 
         return self.index.get_dissimilarity(u, v)
@@ -322,13 +271,181 @@ class LorannIndex(object):
         return self.index.get_n_clusters()
 
 
+class LorannIndex(LorannBaseIndex):
+
+    def __init__(
+        self,
+        data: np.ndarray,
+        n_clusters: int,
+        global_dim: Optional[int],
+        quantization_bits: Optional[int] = 8,
+        rank: int = 32,
+        train_size: int = 5,
+        distance: int = IP,
+        balanced: bool = False,
+        copy: bool = False,
+    ) -> None:
+        """
+        Initializes a LorannIndex object. The initializer does not build the actual index.
+
+        Args:
+            data: Index points as an $m \\times d$ numpy array.
+            n_clusters: Number of clusters. In general, for $m$ index points, a good starting point
+                is to set n_clusters as around $\\sqrt{m}$.
+            global_dim: Globally reduced dimension ($s$). Must be either None or an integer that is
+                a multiple of 32. Higher values increase recall but also increase the query latency.
+                In general, a good starting point is to set global_dim = None if $d < 200$,
+                global_dim = 128 if $200 \\leq d \\leq 1000$, and global_dim = 256 if $d > 1000$.
+            quantization_bits: Number of bits used for quantizing the parameter matrices. Must be
+                None, 4, or 8. Defaults to 8. None turns off quantization, and setting
+                quantization_bits = 4 lowers the memory consumption without affecting the query
+                latency but can lead to reduced recall on some data sets.
+            rank: Rank ($r$) of the parameter matrices. Must be 16, 32, or 64 if quantization_bits
+                is not None. Defaults to 32. Rank = 64 is mainly only useful if no exact re-ranking
+                is performed in the query phase.
+            train_size: Number of nearby clusters ($w$) used for training the reduced-rank
+                regression models. Defaults to 5, but lower values can be used if
+                $m \\gtrsim 500 000$ to speed up the index construction.
+            distance: The distance measure to use. Either IP or L2. Defaults to IP.
+            balanced: Whether to use balanced clustering. Defaults to False.
+            copy: Whether to copy the input data. Defaults to False.
+
+        Raises:
+            ValueError: If the input parameters are invalid.
+
+        Returns:
+            None
+        """
+        super().__init__(
+            data,
+            n_clusters,
+            global_dim,
+            quantization_bits,
+            rank,
+            train_size,
+            distance,
+            balanced,
+            copy,
+        )
+
+        match data.dtype:
+            case np.float32:
+                self.index_type = lorannlib.FP32LorannIndex
+            case np.float16:
+                if not hasattr(lorannlib, "FP16LorannIndex"):
+                    raise RuntimeError("LoRANN not compiled with FP16 support")
+                self.index_type = lorannlib.FP16LorannIndex
+            case np.uint16:
+                if not hasattr(lorannlib, "BF16LorannIndex"):
+                    raise RuntimeError("LoRANN not compiled with BF16 support")
+                self.index_type = lorannlib.BF16LorannIndex
+            case np.uint8:
+                self.index_type = lorannlib.U8LorannIndex
+            case _:
+                raise ValueError("invalid dtype for data matrix")
+
+        n_samples, dim = data.shape
+        self.index = self.index_type(
+            data,
+            n_samples,
+            dim,
+            self.quantization_bits,
+            n_clusters,
+            self.global_dim,
+            rank,
+            train_size,
+            distance,
+            balanced,
+            copy,
+        )
+
+
+class LorannBinaryIndex(LorannBaseIndex):
+
+    def __init__(
+        self,
+        data: npt.NDArray[np.uint8],
+        n_clusters: int,
+        global_dim: Optional[int],
+        quantization_bits: Optional[int] = 8,
+        rank: int = 32,
+        train_size: int = 5,
+        distance: int = IP,
+        balanced: bool = False,
+        copy: bool = False,
+    ) -> None:
+        """
+        Initializes a LorannBinaryIndex object. The initializer does not build the actual index.
+
+        Args:
+            data: Index points as an $m \\times (d / 8)$ numpy array of type np.uint8, where bits
+                have been packed into bytes, e.g. by using np.packbits.
+            n_clusters: Number of clusters. In general, for $m$ index points, a good starting point
+                is to set n_clusters as around $\\sqrt{m}$.
+            global_dim: Globally reduced dimension ($s$). Must be either None or an integer that is
+                a multiple of 32. Higher values increase recall but also increase the query latency.
+                In general, a good starting point is to set global_dim = None if $d < 200$,
+                global_dim = 128 if $200 \\leq d \\leq 1000$, and global_dim = 256 if $d > 1000$.
+            quantization_bits: Number of bits used for quantizing the parameter matrices. Must be
+                None, 4, or 8. Defaults to 8. None turns off quantization, and setting
+                quantization_bits = 4 lowers the memory consumption without affecting the query
+                latency but can lead to reduced recall on some data sets.
+            rank: Rank ($r$) of the parameter matrices. Must be 16, 32, or 64 if quantization_bits
+                is not None. Defaults to 32. Rank = 64 is mainly only useful if no exact re-ranking
+                is performed in the query phase.
+            train_size: Number of nearby clusters ($w$) used for training the reduced-rank
+                regression models. Defaults to 5, but lower values can be used if
+                $m \\gtrsim 500 000$ to speed up the index construction.
+            distance: The distance measure to use. Either IP or L2. Defaults to IP.
+            balanced: Whether to use balanced clustering. Defaults to False.
+            copy: Whether to copy the input data. Defaults to False.
+
+        Raises:
+            ValueError: If the input parameters are invalid.
+
+        Returns:
+            None
+        """
+        if data.dtype != np.uint8:
+            raise ValueError("Binary data should have dtype uint8")
+
+        super().__init__(
+            data,
+            n_clusters,
+            global_dim,
+            quantization_bits,
+            rank,
+            train_size,
+            distance,
+            balanced,
+            copy,
+        )
+
+        self.index_type = lorannlib.BinaryLorannIndex
+
+        n_samples, dim = data.shape
+        self.index = self.index_type(
+            data,
+            n_samples,
+            dim * 8,
+            self.quantization_bits,
+            n_clusters,
+            self.global_dim,
+            rank,
+            train_size,
+            distance,
+            balanced,
+            copy,
+        )
+
+
 class KMeans(object):
 
     def __init__(
         self,
         n_clusters: int,
         iters: int = 25,
-        euclidean: bool = False,
+        distance: int = IP,
         balanced: bool = False,
         max_balance_diff: int = 16,
         penalty_factor: float = 1.4,
@@ -339,8 +456,7 @@ class KMeans(object):
         Args:
             n_clusters: The number of clusters ($k$).
             iters: The number of $k$-means iterations. Defaults to 25.
-            euclidean: Whether to use Euclidean distance instead of (negative) inner product as the
-                dissimilarity measure. Defaults to False.
+            distance: The distance measure to use. Either IP or L2. Defaults to IP.
             balanced: Whether to ensure clusters are balanced using an efficient balanced $k$-means
                 algorithm. Defaults to False.
             max_balance_diff: The maximum allowed difference in cluster sizes for balanced
@@ -360,7 +476,7 @@ class KMeans(object):
         self.index = lorannlib.KMeans(
             n_clusters,
             iters,
-            euclidean,
+            distance,
             balanced,
             max_balance_diff,
             penalty_factor,
@@ -466,13 +582,6 @@ class KMeans(object):
         The number of k-means iterations
         """
         return self.index.get_iters()
-
-    @property
-    def euclidean(self) -> bool:
-        """
-        Whether Euclidean distance is used as the dissimilarity measure
-        """
-        return self.index.get_euclidean()
 
     @property
     def balanced(self) -> bool:

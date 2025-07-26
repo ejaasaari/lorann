@@ -95,6 +95,10 @@ public:
   /// \param engine Random engine to use for sampling from standard normal distribution.
   explicit RandomizedSvd(RandomEngineType &engine) : m_randomEngine{engine} {};
 
+  /// \brief Return the vector of singular values.
+  MatrixType singularValues() const { return m_singularValues; }
+  /// \brief Return the matrix with the left singular vectors.
+  MatrixType matrixU() const { return m_leftSingularVectors; }
   /// \brief Return the matrix with the right singular vectors.
   MatrixType matrixV() const { return m_rightSingularVectors; }
 
@@ -122,8 +126,10 @@ public:
                                                                       numIter, m_randomEngine)};
 
     const auto b{q.adjoint() * a};
-    Eigen::JacobiSVD<MatrixType> svd(b, Eigen::ComputeThinV);
+    Eigen::JacobiSVD<MatrixType> svd(b, Eigen::ComputeThinU | Eigen::ComputeThinV);
 
+    m_leftSingularVectors.noalias() = q * svd.matrixU().leftCols(rank);
+    m_singularValues = svd.singularValues().head(rank);
     m_rightSingularVectors = svd.matrixV().leftCols(rank);
   }
 

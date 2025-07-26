@@ -37,8 +37,6 @@
 #include <iterator>
 #include <utility>
 
-#include "private/median_common.h"
-
 #if __cplusplus >= 201103L
 #include <cstdint>
 #include <type_traits>
@@ -46,6 +44,8 @@
 #else
 #define PDQSORT_PREFER_MOVE(x) (x)
 #endif
+
+#include "private/median_common.h"
 
 namespace miniselect {
 namespace pdqsort_detail {

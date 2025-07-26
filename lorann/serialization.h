@@ -7,7 +7,6 @@
 #include <cereal/types/memory.hpp>
 #include <cereal/types/polymorphic.hpp>
 #include <cereal/types/vector.hpp>
-#include <cstdint>
 
 namespace cereal {
 

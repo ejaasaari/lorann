@@ -1,6 +1,8 @@
 #ifndef RSVD_RANDOMIZED_RANGE_FINDER_HPP_
 #define RSVD_RANDOMIZED_RANGE_FINDER_HPP_
 
+#include <cassert>
+
 #include <Eigen/Dense>
 #include <rsvd/Constants.hpp>
 #include <rsvd/GramSchmidt.hpp>
@@ -69,6 +71,8 @@ struct RandomizedSubspaceIterations<MatrixType, RandomEngineType,
                                     SubspaceIterationConditioner::None> {
   static MatrixType compute(const MatrixType &a, const Eigen::Index dim,
                             const unsigned int numIter, RandomEngineType &engine) {
+    assert(numIter > 0);
+
     const auto numRows{a.rows()};
     const auto numCols{a.cols()};
 
@@ -101,6 +105,8 @@ struct RandomizedSubspaceIterations<MatrixType, RandomEngineType,
                                     SubspaceIterationConditioner::Lu> {
   static MatrixType compute(const MatrixType &a, const Eigen::Index dim,
                             const unsigned int numIter, RandomEngineType &engine) {
+    assert(numIter > 0);
+
     const auto numRows{a.rows()};
     const auto numCols{a.cols()};
 
@@ -137,6 +143,8 @@ struct RandomizedSubspaceIterations<MatrixType, RandomEngineType,
                                     SubspaceIterationConditioner::Mgs> {
   static MatrixType compute(const MatrixType &a, const Eigen::Index dim,
                             const unsigned int numIter, RandomEngineType &engine) {
+    assert(numIter > 0);
+
     const auto numRows{a.rows()};
     const auto numCols{a.cols()};
 
@@ -166,6 +174,8 @@ struct RandomizedSubspaceIterations<MatrixType, RandomEngineType,
                                     SubspaceIterationConditioner::Qr> {
   static MatrixType compute(const MatrixType &a, const Eigen::Index dim,
                             const unsigned int numIter, RandomEngineType &engine) {
+    assert(numIter > 0);
+
     const auto numRows{a.rows()};
     const auto numCols{a.cols()};
 

@@ -30,11 +30,11 @@ Approximate nearest neighbor search library implementing <a href="https://arxiv.
 Install the module with `pip install lorann`
 
 > [!TIP]
-> On macOS, it is highly recommended to use the Homebrew version of Clang as the compiler:
+> On macOS, it is recommended to use the Homebrew version of Clang as the compiler:
 
 ```shell script
 brew install llvm libomp
-CC=/opt/homebrew/opt/llvm/bin/clang CXX=/opt/homebrew/opt/llvm/bin/clang++ LDFLAGS=-L/opt/homebrew/opt/llvm/lib pip install lorann
+CC=/opt/homebrew/opt/llvm/bin/clang CXX=/opt/homebrew/opt/llvm/bin/clang++ pip install lorann
 ```
 
 A minimal example for indexing and querying a dataset using LoRANN is provided below:
