@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>C++ Reference &#8212; LoRANN 0.1 documentation</title>
+    <title>C++ Reference &#8212; LoRANN 0.4 documentation</title>
   
   
   
@@ -38,7 +38,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
 
-    <script src="_static/documentation_options.js?v=2709fde1"></script>
+    <script src="_static/documentation_options.js?v=7f00635f"></script>
     <script src="_static/doctools.js?v=9bcbadda"></script>
     <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
@@ -111,7 +111,7 @@
   
   
   
-    <p class="title logo__title">LoRANN 0.1 documentation</p>
+    <p class="title logo__title">LoRANN 0.4 documentation</p>
   
 </a></div>
     
@@ -309,10 +309,153 @@
                   
   <section id="c-reference">
 <h1>C++ Reference<a class="headerlink" href="#c-reference" title="Link to this heading">#</a></h1>
-<div class="admonition warning">
-<p class="admonition-title">Warning</p>
-<p>doxygenclass: Cannot find class “Lorann::Lorann” in doxygen xml output for project “LoRANN” from directory: ../doxygen/xml</p>
+<dl class="cpp class">
+<dt class="sig sig-object cpp" id="_CPPv4I000EN6Lorann6LorannE">
+<span id="_CPPv3I000EN6Lorann6LorannE"></span><span id="_CPPv2I000EN6Lorann6LorannE"></span><span class="k"><span class="pre">template</span></span><span class="p"><span class="pre">&lt;</span></span><span class="k"><span class="pre">typename</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">T</span></span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="k"><span class="pre">typename</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">DataQuantizer</span></span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">SQ8Quantizer</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="k"><span class="pre">typename</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">QueryQuantizer</span></span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">SQ8Quantizer</span></span><span class="p"><span class="pre">&gt;</span></span><br /><span class="target" id="classLorann_1_1Lorann"></span><span class="k"><span class="pre">class</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">Lorann</span></span></span><span class="w"> </span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="k"><span class="pre">public</span></span><span class="w"> </span><a class="reference internal" href="#_CPPv4I000EN6Lorann6LorannE" title="Lorann::Lorann"><span class="n"><span class="pre">Lorann</span></span></a><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">LorannBase</span></span><span class="p"><span class="pre">&lt;</span></span><a class="reference internal" href="#_CPPv4I000EN6Lorann6LorannE" title="Lorann::Lorann::T"><span class="n"><span class="pre">T</span></span></a><span class="p"><span class="pre">&gt;</span></span><a class="headerlink" href="#_CPPv4I000EN6Lorann6LorannE" title="Link to this definition">#</a><br /></dt>
+<dd><div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-public-functions">Public Functions</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6Lorann6Lorann6LorannEP1Tiiiiii8Distancebb">
+<span id="_CPPv3N6Lorann6Lorann6LorannEP1Tiiiiii8Distancebb"></span><span id="_CPPv2N6Lorann6Lorann6LorannEP1Tiiiiii8Distancebb"></span><span id="Lorann::Lorann::Lorann__TP.i.i.i.i.i.i.Distance.b.b"></span><span class="target" id="classLorann_1_1Lorann_1aba7818f78bd584d0275bc9ed26f0e1a9"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><span class="k"><span class="pre">explicit</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">Lorann</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#_CPPv4I000EN6Lorann6LorannE" title="Lorann::Lorann::T"><span class="n"><span class="pre">T</span></span></a><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">data</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">m</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">d</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">n_clusters</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">global_dim</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">rank</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">32</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">train_size</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">5</span></span>, <span class="n"><span class="pre">Distance</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">distance</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">IP</span></span>, <span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">balanced</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="k"><span class="pre">false</span></span>, <span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">copy</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="k"><span class="pre">false</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6Lorann6Lorann6LorannEP1Tiiiiii8Distancebb" title="Link to this definition">#</a><br /></dt>
+<dd><p>Construct a new <a class="reference internal" href="#classLorann_1_1Lorann"><span class="std std-ref">Lorann</span></a> object. </p>
+<p>NOTE: The constructor does not build the actual index.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data</strong> – The data matrix as a float array of size <span class="math notranslate nohighlight">\(m \times d\)</span> </p></li>
+<li><p><strong>m</strong> – Number of points (rows) in the data matrix </p></li>
+<li><p><strong>d</strong> – Number of dimensions (cols) in the data matrix </p></li>
+<li><p><strong>n_clusters</strong> – Number of clusters. In general, for <span class="math notranslate nohighlight">\(m\)</span> index points, a good starting point is to set n_clusters as around <span class="math notranslate nohighlight">\(\sqrt{m}\)</span>. </p></li>
+<li><p><strong>global_dim</strong> – Globally reduced dimension (<span class="math notranslate nohighlight">\(s\)</span>). Must be either -1 or an integer that is a multiple of 32. If global_dim = -1, no dimensionality reduction is used, but the original dimensionality must be a multiple of 32 in this case. Higher values increase recall but also increase the query latency. In general, a good starting point is to set global_dim = -1 if <span class="math notranslate nohighlight">\(d &lt; 200\)</span>, global_dim = 128 if <span class="math notranslate nohighlight">\(200 \leq d \leq 1000\)</span>, and global_dim = 256 if <span class="math notranslate nohighlight">\(d &gt; 1000\)</span>. </p></li>
+<li><p><strong>rank</strong> – Rank (<span class="math notranslate nohighlight">\(r\)</span>) of the parameter matrices. Must be 16, 32, or 64. Defaults to 32. Rank = 64 is mainly useful if no exact re-ranking is performed in the query phase. </p></li>
+<li><p><strong>train_size</strong> – Number of nearby clusters (<span class="math notranslate nohighlight">\(w\)</span>) used for training the reduced-rank regression models. Defaults to 5, but lower values can be used if <span class="math notranslate nohighlight">\(m \gtrsim 500 000\)</span> to speed up the index construction. </p></li>
+<li><p><strong>distance</strong> – The distance measure to use. Either IP or L2. Defaults to IP. </p></li>
+<li><p><strong>balanced</strong> – Whether to use balanced clustering. Defaults to false. </p></li>
+<li><p><strong>copy</strong> – Whether to copy the input data. Defaults to false. </p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6Lorann6Lorann6searchEPK1TKiKiKiPiP13lorann_dist_t">
+<span id="_CPPv3NK6Lorann6Lorann6searchEPK1TKiKiKiPiP13lorann_dist_t"></span><span id="_CPPv2NK6Lorann6Lorann6searchEPK1TKiKiKiPiP13lorann_dist_t"></span><span id="Lorann::Lorann::search__TCP.iC.iC.iC.iP.lorann_dist_tPC"></span><span class="target" id="classLorann_1_1Lorann_1a59a66f99e001a0f742ba65505727dee2"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">search</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><a class="reference internal" href="#_CPPv4I000EN6Lorann6LorannE" title="Lorann::Lorann::T"><span class="n"><span class="pre">T</span></span></a><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">data</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">k</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">clusters_to_search</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">points_to_rerank</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">idx_out</span></span>, <span class="n"><span class="pre">lorann_dist_t</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">dist_out</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="k"><span class="pre">nullptr</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="k"><span class="pre">override</span></span><a class="headerlink" href="#_CPPv4NK6Lorann6Lorann6searchEPK1TKiKiKiPiP13lorann_dist_t" title="Link to this definition">#</a><br /></dt>
+<dd><p>Query the index. </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data</strong> – The query vector (dimensionality must match that of the index) </p></li>
+<li><p><strong>k</strong> – The number of approximate nearest neighbors retrived </p></li>
+<li><p><strong>clusters_to_search</strong> – Number of clusters to search </p></li>
+<li><p><strong>points_to_rerank</strong> – Number of points for final (exact) re-ranking. If points_to_rerank is set to 0, no re-ranking is performed and the original data does not need to be kept in memory. In this case the final returned distances are approximate distances. </p></li>
+<li><p><strong>idx_out</strong> – The index output array of length k </p></li>
+<li><p><strong>dist_out</strong> – The (optional) distance output array of length k </p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6Lorann6Lorann5buildEPK1TKiKbKbi">
+<span id="_CPPv3N6Lorann6Lorann5buildEPK1TKiKbKbi"></span><span id="_CPPv2N6Lorann6Lorann5buildEPK1TKiKbKbi"></span><span id="Lorann::Lorann::build__TCP.iC.bC.bC.i"></span><span class="target" id="classLorann_1_1Lorann_1a7ea15460d09d4ea7b15546fce45ff53a"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">build</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><a class="reference internal" href="#_CPPv4I000EN6Lorann6LorannE" title="Lorann::Lorann::T"><span class="n"><span class="pre">T</span></span></a><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">query_data</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">query_n</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">approximate</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="k"><span class="pre">true</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">verbose</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="k"><span class="pre">false</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">num_threads</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="o"><span class="pre">-</span></span><span class="m"><span class="pre">1</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">override</span></span><a class="headerlink" href="#_CPPv4N6Lorann6Lorann5buildEPK1TKiKbKbi" title="Link to this definition">#</a><br /></dt>
+<dd><p>Build the index. </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>query_data</strong> – A float array of training queries of size <span class="math notranslate nohighlight">\(n \times d\)</span> used to build the index. Can be useful in the out-of-distribution setting where the training and query distributions differ. Ideally there should be at least as many training query points as there are index points. </p></li>
+<li><p><strong>query_n</strong> – The number of training queries </p></li>
+<li><p><strong>approximate</strong> – Whether to turn on various approximations during index construction. Defaults to true. Setting approximate to false slows down the index construction but can slightly increase the recall, especially if no exact re-ranking is used in the query phase. </p></li>
+<li><p><strong>verbose</strong> – Whether to use verbose output for index construction. Defaults to false. </p></li>
+<li><p><strong>num_threads</strong> – Number of CPU threads to use (set to -1 to use all cores) </p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6Lorann6Lorann13get_n_samplesEv">
+<span id="_CPPv3NK6Lorann6Lorann13get_n_samplesEv"></span><span id="_CPPv2NK6Lorann6Lorann13get_n_samplesEv"></span><span id="Lorann::Lorann::get_n_samplesC"></span><span class="target" id="classLorann_1_1LorannBase_1acd4973f3e4a947d513cfc231afc43414"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_n_samples</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK6Lorann6Lorann13get_n_samplesEv" title="Link to this definition">#</a><br /></dt>
+<dd><p>Get the number of samples in the index. </p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6Lorann6Lorann7get_dimEv">
+<span id="_CPPv3NK6Lorann6Lorann7get_dimEv"></span><span id="_CPPv2NK6Lorann6Lorann7get_dimEv"></span><span id="Lorann::Lorann::get_dimC"></span><span class="target" id="classLorann_1_1LorannBase_1a5c1d7bb6ad2db7f20adef133b30fec3a"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_dim</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK6Lorann6Lorann7get_dimEv" title="Link to this definition">#</a><br /></dt>
+<dd><p>Get the dimensionality of the vectors in the index. </p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6Lorann6Lorann14get_n_clustersEv">
+<span id="_CPPv3NK6Lorann6Lorann14get_n_clustersEv"></span><span id="_CPPv2NK6Lorann6Lorann14get_n_clustersEv"></span><span id="Lorann::Lorann::get_n_clustersC"></span><span class="target" id="classLorann_1_1LorannBase_1ad1fac990dafe75385e924c9c3ea11b2b"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_n_clusters</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK6Lorann6Lorann14get_n_clustersEv" title="Link to this definition">#</a><br /></dt>
+<dd><p>Get the number of clusters. </p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6Lorann6Lorann17get_dissimilarityEPK1TPK1T">
+<span id="_CPPv3N6Lorann6Lorann17get_dissimilarityEPK1TPK1T"></span><span id="_CPPv2N6Lorann6Lorann17get_dissimilarityEPK1TPK1T"></span><span id="Lorann::Lorann::get_dissimilarity__TCP.TCP"></span><span class="target" id="classLorann_1_1LorannBase_1aeba0cd770aad9d2184a51cdfde524550"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><span class="n"><span class="pre">lorann_dist_t</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_dissimilarity</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><a class="reference internal" href="#_CPPv4I000EN6Lorann6LorannE" title="Lorann::Lorann::T"><span class="n"><span class="pre">T</span></span></a><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">u</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><a class="reference internal" href="#_CPPv4I000EN6Lorann6LorannE" title="Lorann::Lorann::T"><span class="n"><span class="pre">T</span></span></a><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">v</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6Lorann6Lorann17get_dissimilarityEPK1TPK1T" title="Link to this definition">#</a><br /></dt>
+<dd><p>Compute the dissimilarity between two vectors. </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>u</strong> – First vector </p></li>
+<li><p><strong>v</strong> – Second vector</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>float The dissimilarity </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6Lorann6Lorann5buildEKbKbi">
+<span id="_CPPv3N6Lorann6Lorann5buildEKbKbi"></span><span id="_CPPv2N6Lorann6Lorann5buildEKbKbi"></span><span id="Lorann::Lorann::build__bC.bC.i"></span><span class="target" id="classLorann_1_1LorannBase_1a98b57396f92f172962e5597fcdf85712"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">build</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">approximate</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="k"><span class="pre">true</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">verbose</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="k"><span class="pre">false</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">num_threads</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="o"><span class="pre">-</span></span><span class="m"><span class="pre">1</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6Lorann6Lorann5buildEKbKbi" title="Link to this definition">#</a><br /></dt>
+<dd><p>Build the index. </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>approximate</strong> – Whether to turn on various approximations during index construction. Defaults to true. Setting approximate to false slows down the index construction but can slightly increase the recall, especially if no exact re-ranking is used in the query phase. </p></li>
+<li><p><strong>verbose</strong> – Whether to use verbose output for index construction. Defaults to false. </p></li>
+<li><p><strong>num_threads</strong> – Number of CPU threads to use (set to -1 to use all cores) </p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6Lorann6Lorann12exact_searchEPK1TiPiP13lorann_dist_t">
+<span id="_CPPv3NK6Lorann6Lorann12exact_searchEPK1TiPiP13lorann_dist_t"></span><span id="_CPPv2NK6Lorann6Lorann12exact_searchEPK1TiPiP13lorann_dist_t"></span><span id="Lorann::Lorann::exact_search__TCP.i.iP.lorann_dist_tPC"></span><span class="target" id="classLorann_1_1LorannBase_1acf16a2ec7f25b4f067fb03f475c7028d"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">exact_search</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><a class="reference internal" href="#_CPPv4I000EN6Lorann6LorannE" title="Lorann::Lorann::T"><span class="n"><span class="pre">T</span></span></a><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">q</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">k</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">out</span></span>, <span class="n"><span class="pre">lorann_dist_t</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">dist_out</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="k"><span class="pre">nullptr</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK6Lorann6Lorann12exact_searchEPK1TiPiP13lorann_dist_t" title="Link to this definition">#</a><br /></dt>
+<dd><p>Perform exact k-nn search using the index. </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>q</strong> – The query vector (dimension must match the index data dimension) </p></li>
+<li><p><strong>k</strong> – The number of nearest neighbors </p></li>
+<li><p><strong>out</strong> – The index output array of length k </p></li>
+<li><p><strong>dist_out</strong> – The (optional) distance output array of length k </p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
 </div>
+</dd></dl>
+
 <dl class="cpp class">
 <dt class="sig sig-object cpp" id="_CPPv4I0EN6Lorann8LorannFPE">
 <span id="_CPPv3I0EN6Lorann8LorannFPE"></span><span id="_CPPv2I0EN6Lorann8LorannFPE"></span><span class="k"><span class="pre">template</span></span><span class="p"><span class="pre">&lt;</span></span><span class="k"><span class="pre">typename</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">T</span></span></span><span class="p"><span class="pre">&gt;</span></span><br /><span class="target" id="classLorann_1_1LorannFP"></span><span class="k"><span class="pre">class</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">LorannFP</span></span></span><span class="w"> </span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="k"><span class="pre">public</span></span><span class="w"> </span><span class="n"><span class="pre">Lorann</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">LorannBase</span></span><span class="p"><span class="pre">&lt;</span></span><a class="reference internal" href="#_CPPv4I0EN6Lorann8LorannFPE" title="Lorann::LorannFP::T"><span class="n"><span class="pre">T</span></span></a><span class="p"><span class="pre">&gt;</span></span><a class="headerlink" href="#_CPPv4I0EN6Lorann8LorannFPE" title="Link to this definition">#</a><br /></dt>
@@ -619,6 +762,18 @@
   </div>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#_CPPv4I000EN6Lorann6LorannE"><code class="docutils literal notranslate"><span class="pre">Lorann::Lorann</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#_CPPv4N6Lorann6Lorann6LorannEP1Tiiiiii8Distancebb"><code class="docutils literal notranslate"><span class="pre">Lorann()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#_CPPv4NK6Lorann6Lorann6searchEPK1TKiKiKiPiP13lorann_dist_t"><code class="docutils literal notranslate"><span class="pre">search()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#_CPPv4N6Lorann6Lorann5buildEPK1TKiKbKbi"><code class="docutils literal notranslate"><span class="pre">build()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#_CPPv4NK6Lorann6Lorann13get_n_samplesEv"><code class="docutils literal notranslate"><span class="pre">get_n_samples()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#_CPPv4NK6Lorann6Lorann7get_dimEv"><code class="docutils literal notranslate"><span class="pre">get_dim()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#_CPPv4NK6Lorann6Lorann14get_n_clustersEv"><code class="docutils literal notranslate"><span class="pre">get_n_clusters()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#_CPPv4N6Lorann6Lorann17get_dissimilarityEPK1TPK1T"><code class="docutils literal notranslate"><span class="pre">get_dissimilarity()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#_CPPv4N6Lorann6Lorann5buildEKbKbi"><code class="docutils literal notranslate"><span class="pre">build()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#_CPPv4NK6Lorann6Lorann12exact_searchEPK1TiPiP13lorann_dist_t"><code class="docutils literal notranslate"><span class="pre">exact_search()</span></code></a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#_CPPv4I0EN6Lorann8LorannFPE"><code class="docutils literal notranslate"><span class="pre">Lorann::LorannFP</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#_CPPv4N6Lorann8LorannFP8LorannFPEP1Tiiiiii8Distancebb"><code class="docutils literal notranslate"><span class="pre">LorannFP()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#_CPPv4NK6Lorann8LorannFP6searchEPK1TKiKiKiPiP13lorann_dist_t"><code class="docutils literal notranslate"><span class="pre">search()</span></code></a></li>
@@ -678,7 +833,7 @@
 
   <p class="copyright">
     
-      © Copyright 2024, Elias Jääsaari.
+      © Copyright 2025, Elias Jääsaari.
       <br/>
     
   </p>
