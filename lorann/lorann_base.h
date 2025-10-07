@@ -45,10 +45,12 @@ class LorannBase {
     LORANN_ENSURE_POSITIVE(rank);
     LORANN_ENSURE_POSITIVE(train_size);
 
+    const int width = d / detail::Traits<T>::dim_divisor;
+    check_for_nan(data, m, width);
+
     if (!copy) {
       _data = std::unique_ptr<T[], void (*)(T *)>(data, [](T *) { /* no-op for external data */ });
     } else {
-      const int width = d / detail::Traits<T>::dim_divisor;
       _data = make_aligned_array<T>(m * width);
       std::memcpy(_data.get(), data, m * width * sizeof(T));
     }

@@ -397,7 +397,7 @@ class TestLorannIndex:
         # Test NaN in data
         bad_data = mnist_data[:100].copy()
         bad_data[0, 0] = np.nan
-        with pytest.raises(ValueError):
+        with pytest.raises(RuntimeError):
             index = lorann.LorannIndex(bad_data, n_clusters=10, global_dim=None)
 
         # Test dimension too small

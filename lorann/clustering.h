@@ -73,6 +73,8 @@ class KMeans {
           "The number of points should be at least as large as the number of clusters");
     }
 
+    check_for_nan(data, n, m);
+
 #ifdef _OPENMP
     if (num_threads <= 0) {
       num_threads = omp_get_max_threads();

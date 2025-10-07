@@ -38,7 +38,7 @@ struct npy_lorann_dist<double> {
   static constexpr int value = NPY_FLOAT64;
 };
 
-template<typename T>
+template <typename T>
 constexpr int npy_lorann_dist_v = npy_lorann_dist<T>::value;
 
 typedef struct {
@@ -72,8 +72,16 @@ static int KMeans_init(KMeansIndex *self, PyObject *args, PyObject *kwds) {
     return -1;
   }
 
-  self->index = std::make_unique<Lorann::KMeans>(n_clusters, iters, distance, balanced,
-                                                 max_balance_diff, penalty_factor);
+  try {
+    self->index = std::make_unique<Lorann::KMeans>(n_clusters, iters, distance, balanced,
+                                                   max_balance_diff, penalty_factor);
+  } catch (const std::exception &e) {
+    PyErr_Format(PyExc_RuntimeError, "Failed to initialize KMeans index: %s", e.what());
+    return -1;
+  } catch (...) {
+    PyErr_SetString(PyExc_RuntimeError, "Unknown error during KMeans index initialization");
+    return -1;
+  }
   return 0;
 }
 
@@ -107,9 +115,30 @@ static PyObject *kmeans_train(KMeansIndex *self, PyObject *args) {
   float *data = reinterpret_cast<float *>(PyArray_DATA(py_data));
 
   std::vector<std::vector<int>> idxs;
-  Py_BEGIN_ALLOW_THREADS;
-  idxs = self->index->train(data, n, dim, verbose, n_threads);
-  Py_END_ALLOW_THREADS;
+
+  std::exception_ptr eptr;
+  Py_BEGIN_ALLOW_THREADS try {
+    idxs = self->index->train(data, n, dim, verbose, n_threads);
+  } catch (...) {
+    eptr = std::current_exception();
+  }
+  Py_END_ALLOW_THREADS
+
+      if (eptr) {
+    try {
+      std::rethrow_exception(eptr);
+    } catch (const std::exception &e) {
+      Py_DECREF(py_data);
+      self->py_data = NULL;
+      PyErr_Format(PyExc_RuntimeError, "Failed to train KMeans index: %s", e.what());
+      return NULL;
+    } catch (...) {
+      Py_DECREF(py_data);
+      self->py_data = NULL;
+      PyErr_SetString(PyExc_RuntimeError, "Unknown error during KMeans training");
+      return NULL;
+    }
+  }
 
   PyObject *list = PyList_New(idxs.size());
   for (size_t i = 0; i < idxs.size(); ++i) {
@@ -136,16 +165,24 @@ static PyObject *kmeans_get_balanced(KMeansIndex *self, PyObject *args) {
 }
 
 static PyObject *kmeans_get_centroids(KMeansIndex *self, PyObject *args) {
-  const Lorann::RowMatrix centroids = self->index->get_centroids();
-  const int n_clusters = centroids.rows();
-  const int dim = centroids.cols();
+  try {
+    const Lorann::RowMatrix centroids = self->index->get_centroids();
+    const int n_clusters = centroids.rows();
+    const int dim = centroids.cols();
 
-  npy_intp dims[2] = {n_clusters, dim};
-  PyObject *ret = PyArray_SimpleNew(2, dims, NPY_FLOAT32);
-  float *outdata = reinterpret_cast<float *>(PyArray_DATA((PyArrayObject *)ret));
-  std::memcpy(outdata, centroids.data(), n_clusters * dim * sizeof(float));
+    npy_intp dims[2] = {n_clusters, dim};
+    PyObject *ret = PyArray_SimpleNew(2, dims, NPY_FLOAT32);
+    float *outdata = reinterpret_cast<float *>(PyArray_DATA((PyArrayObject *)ret));
+    std::memcpy(outdata, centroids.data(), n_clusters * dim * sizeof(float));
 
-  return ret;
+    return ret;
+  } catch (const std::exception &e) {
+    PyErr_Format(PyExc_RuntimeError, "Failed to get centroids: %s", e.what());
+    return NULL;
+  } catch (...) {
+    PyErr_SetString(PyExc_RuntimeError, "Unknown error while getting centroids");
+    return NULL;
+  }
 }
 
 static PyObject *kmeans_assign(KMeansIndex *self, PyObject *args) {
@@ -156,7 +193,16 @@ static PyObject *kmeans_assign(KMeansIndex *self, PyObject *args) {
 
   float *data = reinterpret_cast<float *>(PyArray_DATA((PyArrayObject *)py_data));
 
-  std::vector<std::vector<int>> idxs = self->index->assign(data, n, k);
+  std::vector<std::vector<int>> idxs;
+  try {
+    idxs = self->index->assign(data, n, k);
+  } catch (const std::exception &e) {
+    PyErr_Format(PyExc_RuntimeError, "Failed to assign clusters: %s", e.what());
+    return NULL;
+  } catch (...) {
+    PyErr_SetString(PyExc_RuntimeError, "Unknown error during cluster assignment");
+    return NULL;
+  }
 
   PyObject *list = PyList_New(idxs.size());
   for (size_t i = 0; i < idxs.size(); ++i) {
@@ -199,15 +245,31 @@ static int Lorann_init(LorannIndex<T> *self, PyObject *args, PyObject *kwds) {
   }
 
   T *data = reinterpret_cast<T *>(PyArray_DATA(py_data));
-  if (quantization_bits == 4) {
-    self->index = std::make_unique<Lorann::Lorann<T, Lorann::SQ4Quantizer>>(
-        data, n, dim, n_clusters, global_dim, rank, train_size, distance, balanced);
-  } else if (quantization_bits == 8) {
-    self->index = std::make_unique<Lorann::Lorann<T, Lorann::SQ8Quantizer>>(
-        data, n, dim, n_clusters, global_dim, rank, train_size, distance, balanced);
-  } else {
-    self->index = std::make_unique<Lorann::LorannFP<T>>(data, n, dim, n_clusters, global_dim, rank,
-                                                        train_size, distance, balanced);
+  try {
+    if (quantization_bits == 4) {
+      self->index = std::make_unique<Lorann::Lorann<T, Lorann::SQ4Quantizer>>(
+          data, n, dim, n_clusters, global_dim, rank, train_size, distance, balanced);
+    } else if (quantization_bits == 8) {
+      self->index = std::make_unique<Lorann::Lorann<T, Lorann::SQ8Quantizer>>(
+          data, n, dim, n_clusters, global_dim, rank, train_size, distance, balanced);
+    } else {
+      self->index = std::make_unique<Lorann::LorannFP<T>>(data, n, dim, n_clusters, global_dim,
+                                                          rank, train_size, distance, balanced);
+    }
+  } catch (const std::exception &e) {
+    if (!copy) {
+      Py_DECREF(py_data);
+      self->py_data = NULL;
+    }
+    PyErr_Format(PyExc_RuntimeError, "Failed to initialize Lorann index: %s", e.what());
+    return -1;
+  } catch (...) {
+    if (!copy) {
+      Py_DECREF(py_data);
+      self->py_data = NULL;
+    }
+    PyErr_SetString(PyExc_RuntimeError, "Unknown error during Lorann index initialization");
+    return -1;
   }
 
   return 0;
@@ -271,16 +333,36 @@ static PyObject *lorann_build(LorannIndex<T> *self, PyObject *args) {
   }
 #endif
 
+  std::exception_ptr eptr;
+
   if (Q != NULL) {
     T *indata = reinterpret_cast<T *>(PyArray_DATA(Q));
     int n = PyArray_DIM(Q, 0);
-    Py_BEGIN_ALLOW_THREADS;
-    self->index->build(indata, n, approximate, verbose, n_threads);
-    Py_END_ALLOW_THREADS;
+    Py_BEGIN_ALLOW_THREADS try {
+      self->index->build(indata, n, approximate, verbose, n_threads);
+    } catch (...) {
+      eptr = std::current_exception();
+    }
+    Py_END_ALLOW_THREADS
   } else {
-    Py_BEGIN_ALLOW_THREADS;
-    self->index->build(approximate, verbose, n_threads);
-    Py_END_ALLOW_THREADS;
+    Py_BEGIN_ALLOW_THREADS try {
+      self->index->build(approximate, verbose, n_threads);
+    } catch (...) {
+      eptr = std::current_exception();
+    }
+    Py_END_ALLOW_THREADS
+  }
+
+  if (eptr) {
+    try {
+      std::rethrow_exception(eptr);
+    } catch (const std::exception &e) {
+      PyErr_Format(PyExc_RuntimeError, "Failed to build index: %s", e.what());
+      return NULL;
+    } catch (...) {
+      PyErr_SetString(PyExc_RuntimeError, "Unknown error during index build");
+      return NULL;
+    }
   }
 
   Py_RETURN_NONE;
@@ -648,17 +730,25 @@ static PyObject *lorann_compute_V(PyObject *self, PyObject *args) {
   const int d = PyArray_DIM(A, 1);
   float *A_data = reinterpret_cast<float *>(PyArray_DATA(A));
 
-  Eigen::MatrixXf Y = Eigen::Map<Lorann::RowMatrix>(A_data, n, d);
-  Eigen::MatrixXf V = Lorann::compute_V(Y, rank);
+  try {
+    Eigen::MatrixXf Y = Eigen::Map<Lorann::RowMatrix>(A_data, n, d);
+    Eigen::MatrixXf V = Lorann::compute_V(Y, rank);
 
-  PyObject *ret;
-  npy_intp dims[2] = {V.cols(), V.rows()};
-  ret = PyArray_SimpleNew(2, dims, NPY_FLOAT32);
+    PyObject *ret;
+    npy_intp dims[2] = {V.cols(), V.rows()};
+    ret = PyArray_SimpleNew(2, dims, NPY_FLOAT32);
 
-  float *outdata = reinterpret_cast<float *>(PyArray_DATA((PyArrayObject *)ret));
-  std::memcpy(outdata, V.data(), V.rows() * V.cols() * sizeof(float));
+    float *outdata = reinterpret_cast<float *>(PyArray_DATA((PyArrayObject *)ret));
+    std::memcpy(outdata, V.data(), V.rows() * V.cols() * sizeof(float));
 
-  return ret;
+    return ret;
+  } catch (const std::exception &e) {
+    PyErr_Format(PyExc_RuntimeError, "Failed to compute V: %s", e.what());
+    return NULL;
+  } catch (...) {
+    PyErr_SetString(PyExc_RuntimeError, "Unknown error while computing V");
+    return NULL;
+  }
 }
 
 static PyMethodDef module_methods[] = {

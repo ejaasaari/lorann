@@ -102,6 +102,17 @@ struct ArgsortComparator {
 };
 
 template <typename T>
+inline void check_for_nan(const T *data, int n, int dim) {
+  if constexpr (std::is_floating_point<T>::value) {
+    for (int i = 0; i < n * dim; ++i) {
+      if (std::isnan(data[i])) {
+        throw std::invalid_argument("Data matrix contains NaN");
+      }
+    }
+  }
+}
+
+template <typename T>
 inline std::unique_ptr<T[], void (*)(T *)> make_aligned_array(std::size_t count,
                                                               std::size_t alignment = 64) {
   std::size_t bytes = count * sizeof(T);

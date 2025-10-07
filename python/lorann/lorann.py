@@ -35,9 +35,6 @@ class LorannBaseIndex(object):
     ) -> None:
         n_samples, dim = _check_data_matrix(data)
 
-        if np.isnan(np.sum(data)):
-            raise ValueError("Data matrix contains NaN")
-
         assert (
             dim >= 64
         ), "LoRANN is meant for high-dimensional data: the dimensionality should be at least 64."
@@ -89,10 +86,6 @@ class LorannBaseIndex(object):
                 useful in the out-of-distribution setting where the training and query distributions
                 differ. Ideally there should be at least as many training query points as there are
                 index points.
-
-        Raises:
-            RuntimeError: If the index has already been built.
-            ValueError: If the input parameters are invalid.
         """
         if self.built:
             raise RuntimeError("The index has already been built")
@@ -142,10 +135,6 @@ class LorannBaseIndex(object):
             n_threads: Number of CPU threads to use (set to -1 to use all cores). Only has effect if
                 multiple query vectors are provided.
 
-        Raises:
-            RuntimeError: If the index has not been been built.
-            ValueError: If the input parameters are invalid.
-
         Returns:
             If return_distances is False, returns a vector or matrix of indices of the approximate
             nearest neighbors in the original input data for the corresponding query. If
@@ -180,9 +169,6 @@ class LorannBaseIndex(object):
             n_threads: Number of CPU threads to use (set to -1 to use all cores). Only has effect if
                 multiple query vectors are provided.
 
-        Raises:
-            ValueError: If the input parameters are invalid.
-
         Returns:
             If return_distances is False, returns a vector or matrix of indices of the exact nearest
             neighbors in the original input data for the corresponding query. If return_distances is
@@ -197,10 +183,6 @@ class LorannBaseIndex(object):
 
         Args:
             fname: The filename to save the index to.
-
-        Raises:
-            RuntimeError: If trying to save before building the index.
-            OSError: If saving to the specified file fails.
 
         Returns:
             None
@@ -217,9 +199,6 @@ class LorannBaseIndex(object):
 
         Args:
             fname: The filename to load the index from.
-
-        Raises:
-            OSError: If loading from the specified file fails.
 
         Returns:
             The loaded LorannIndex object.
@@ -240,9 +219,6 @@ class LorannBaseIndex(object):
 
         Returns:
             The dissimilarity between the two vectors.
-
-        Raises:
-            ValueError: If the vectors are not of the same dimension as the index.
         """
         if u.shape[0] != self.data_dim or v.shape[0] != self.data_dim:
             raise ValueError("The dimensionality of u and v should match the index dimension")
@@ -309,9 +285,6 @@ class LorannIndex(LorannBaseIndex):
             distance: The distance measure to use. Either IP or L2. Defaults to IP.
             balanced: Whether to use balanced clustering. Defaults to False.
             copy: Whether to copy the input data. Defaults to False.
-
-        Raises:
-            ValueError: If the input parameters are invalid.
 
         Returns:
             None
@@ -399,9 +372,6 @@ class LorannBinaryIndex(LorannBaseIndex):
             distance: The distance measure to use. Either IP or L2. Defaults to IP.
             balanced: Whether to use balanced clustering. Defaults to False.
             copy: Whether to copy the input data. Defaults to False.
-
-        Raises:
-            ValueError: If the input parameters are invalid.
 
         Returns:
             None
@@ -494,10 +464,6 @@ class KMeans(object):
             verbose: Whether to enable verbose output. Defaults to False.
             n_threads: Number of CPU threads to use (set to -1 to use all cores)
 
-        Raises:
-            ValueError: If the data matrix is invalid.
-            RuntimeError: If the clustering has already been trained.
-
         Returns:
             A list of numpy arrays, each containing the ids of the
             points assigned to the corresponding cluster.
@@ -505,15 +471,15 @@ class KMeans(object):
         if self.trained:
             raise RuntimeError("The clustering has already been trained")
 
+        if data.dtype != np.float32:
+            raise RuntimeError("The data matrix should have type float32")
+
         n_samples, dim = _check_data_matrix(data)
 
         if n_samples < self.n_clusters:
             raise RuntimeError(
                 "The number of points should be at least as large as the number of clusters"
             )
-
-        if np.isnan(np.sum(data)):
-            raise ValueError("Data matrix contains NaN")
 
         self.trained = True
         return self.index.train(data, n_samples, dim, verbose, n_threads)
@@ -528,10 +494,6 @@ class KMeans(object):
         Args:
             data: The data as an $m \\times d$ numpy array.
             k: The number of clusters each point is assigned to.
-
-        Raises:
-            ValueError: If the data matrix is invalid.
-            RuntimeError: If the clustering has not been trained.
 
         Returns:
             A list of numpy arrays, one for each cluster, containing the ids of the data points
@@ -550,9 +512,6 @@ class KMeans(object):
     def get_centroids(self) -> npt.NDArray[np.float32]:
         """
         Retrieves the centroids of the clusters.
-
-        Raises:
-            RuntimeError: If the clustering has not been trained.
 
         Returns:
             A matrix of centroids, where each row represents a centroid.
@@ -614,9 +573,6 @@ def compute_recall(approx: npt.NDArray[np.int32], exact: npt.NDArray[np.int32]) 
     Args:
         approx
         exact
-
-    Raises:
-        ValueError
 
     Returns:
         recall
