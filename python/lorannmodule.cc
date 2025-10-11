@@ -63,18 +63,18 @@ static PyObject *KMeans_new(PyTypeObject *type, PyObject *args, PyObject *kwds) 
 }
 
 static int KMeans_init(KMeansIndex *self, PyObject *args, PyObject *kwds) {
-  int n_clusters, iters, balanced, max_balance_diff;
+  int n_clusters, iters, samples_per_cluster, balanced, max_balance_diff;
   Lorann::Distance distance;
   float penalty_factor;
 
-  if (!PyArg_ParseTuple(args, "iiiiif", &n_clusters, &iters, &distance, &balanced,
-                        &max_balance_diff, &penalty_factor)) {
+  if (!PyArg_ParseTuple(args, "iiiiiif", &n_clusters, &iters, &samples_per_cluster, &distance,
+                        &balanced, &max_balance_diff, &penalty_factor)) {
     return -1;
   }
 
   try {
-    self->index = std::make_unique<Lorann::KMeans>(n_clusters, iters, distance, balanced,
-                                                   max_balance_diff, penalty_factor);
+    self->index = std::make_unique<Lorann::KMeans>(n_clusters, iters, samples_per_cluster, distance,
+                                                   balanced, max_balance_diff, penalty_factor);
   } catch (const std::exception &e) {
     PyErr_Format(PyExc_RuntimeError, "Failed to initialize KMeans index: %s", e.what());
     return -1;

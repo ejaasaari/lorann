@@ -169,7 +169,13 @@ class LorannFP final : public LorannBase<T> {
     MappedMatrix train_mat = detail::Traits<T>::to_float_matrix(_data.get(), _n_samples, _dim);
     MappedMatrix query_mat = detail::Traits<T>::to_float_matrix(query_data, query_n, _dim);
 
-    KMeans global_clustering(_n_clusters, KMEANS_ITERATIONS, _distance, _balanced,
+    int to_sample = SAMPLED_POINTS_PER_CLUSTER;
+    if (_balanced || !approximate || to_sample * _n_clusters > 0.5f * _n_samples) {
+      to_sample = -1;
+    }
+
+    /* clustering */
+    KMeans global_clustering(_n_clusters, KMEANS_ITERATIONS, to_sample, _distance, _balanced,
                              BALANCED_KMEANS_MAX_DIFF, BALANCED_KMEANS_PENALTY);
 
     std::vector<std::vector<int>> cluster_train_map;
@@ -181,18 +187,18 @@ class LorannFP final : public LorannBase<T> {
 
       if (query_mat.view.data() != train_mat.view.data()) {
         RowMatrix reduced_query_mat = query_mat.view * _global_transform;
-        cluster_train_map = clustering(global_clustering, reduced_train_mat.data(),
-                                       reduced_train_mat.rows(), reduced_query_mat.data(),
-                                       reduced_query_mat.rows(), approximate, verbose, num_threads);
+        cluster_train_map =
+            clustering(global_clustering, reduced_train_mat.data(), reduced_train_mat.rows(),
+                       reduced_query_mat.data(), reduced_query_mat.rows(), verbose, num_threads);
       } else {
-        cluster_train_map = clustering(global_clustering, reduced_train_mat.data(),
-                                       reduced_train_mat.rows(), reduced_train_mat.data(),
-                                       reduced_train_mat.rows(), approximate, verbose, num_threads);
+        cluster_train_map =
+            clustering(global_clustering, reduced_train_mat.data(), reduced_train_mat.rows(),
+                       reduced_train_mat.data(), reduced_train_mat.rows(), verbose, num_threads);
       }
     } else {
-      cluster_train_map = clustering(global_clustering, train_mat.view.data(),
-                                     train_mat.view.rows(), query_mat.view.data(),
-                                     query_mat.view.rows(), approximate, verbose, num_threads);
+      cluster_train_map =
+          clustering(global_clustering, train_mat.view.data(), train_mat.view.rows(),
+                     query_mat.view.data(), query_mat.view.rows(), verbose, num_threads);
     }
 
     _centroid_mat = global_clustering.get_centroids();

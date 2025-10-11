@@ -21,6 +21,7 @@ def run_kmeans(
     kmeans = lorann.KMeans(
         n_clusters=n_clusters,
         iters=10,
+        samples_per_cluster=256,
         distance=distance,
         balanced=balanced,
         max_balance_diff=max_balance_diff,

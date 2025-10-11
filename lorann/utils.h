@@ -275,22 +275,22 @@ static RowMatrix sample_rows(const Eigen::Map<const RowMatrix> &X, const int sam
     return X;
   }
 
-  std::unordered_set<int> sample;
-  std::mt19937_64 generator;
+  std::random_device rd;
+  std::mt19937_64 generator(rd());
 
-  int upper_bound = X.rows() - 1;
-  for (int d = upper_bound - sample_size; d < upper_bound; d++) {
-    int t = std::uniform_int_distribution<>(0, d)(generator);
-    if (sample.find(t) == sample.end())
-      sample.insert(t);
-    else
-      sample.insert(d);
+  std::vector<int> reservoir(sample_size);
+  std::iota(reservoir.begin(), reservoir.end(), 0);
+
+  for (int i = sample_size; i < X.rows(); ++i) {
+    int j = std::uniform_int_distribution<>(0, i)(generator);
+    if (j < sample_size) {
+      reservoir[j] = i;
+    }
   }
 
   RowMatrix ret(sample_size, X.cols());
-  int i = 0;
-  for (auto idx : sample) {
-    ret.row(i++) = X.row(idx);
+  for (int i = 0; i < sample_size; ++i) {
+    ret.row(i) = X.row(reservoir[i]);
   }
 
   return ret;

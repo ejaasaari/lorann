@@ -24,6 +24,9 @@ class KMeans {
    *
    * @param n_clusters The number of clusters (k)
    * @param iters The number of k-means iterations to perform. Defaults to 25.
+   * @param samples_per_cluster Number of points to sample per cluster for k-means iterations
+   * (total sample size = samples_per_cluster * n_clusters). K-means iterations use this subset
+   * for speed, while final assignments use the full dataset. Set to <= 0 to disable sampling.
    * @param distance The distance measure to use. Either IP or L2. Defaults to IP.
    * @param balanced Whether to ensure clusters are balanced using an efficient balanced k-means
    * algorithm. Defaults to false.
@@ -33,10 +36,11 @@ class KMeans {
    * for faster clustering at the cost of clustering quality. Used only if balanced = True.
    * Defaults to 1.4.
    */
-  KMeans(int n_clusters, int iters = 25, Distance distance = IP, bool balanced = false,
-         int max_balance_diff = 16, float penalty_factor = 1.4)
+  KMeans(int n_clusters, int iters = 25, int samples_per_cluster = 256, Distance distance = IP,
+         bool balanced = false, int max_balance_diff = 16, float penalty_factor = 1.4)
       : _iters(iters),
         _n_clusters(n_clusters),
+        _samples_per_cluster(samples_per_cluster),
         _distance(distance),
         _balanced(balanced),
         _max_balance_diff(max_balance_diff),
@@ -83,27 +87,47 @@ class KMeans {
 
     Eigen::Map<const RowMatrix> train_mat = Eigen::Map<const RowMatrix>(data, n, m);
 
-    _assignments = std::vector<int>(n);
+    _assignments = std::vector<int>(train_mat.rows());
     _cluster_sizes = Vector(_n_clusters);
     Vector data_norms = train_mat.rowwise().squaredNorm();
 
     _centroids = sample_rows(train_mat, _n_clusters);
     postprocess_centroids();
 
+    RowMatrix sampled_training_mat;
+    const float *iter_data_ptr = data;
+    int iter_n = n;
+    Vector iter_norms = data_norms;
+
+    if (_samples_per_cluster > 0) {
+      int sample_size = _samples_per_cluster * _n_clusters;
+      if (sample_size < n) {
+        sampled_training_mat = sample_rows(train_mat, sample_size);
+        iter_data_ptr = sampled_training_mat.data();
+        iter_n = sampled_training_mat.rows();
+        iter_norms = sampled_training_mat.rowwise().squaredNorm();
+        _assignments.resize(iter_n);
+      }
+    }
+
+    Eigen::Map<const RowMatrix> iter_mat(iter_data_ptr, iter_n, m);
+
     if (verbose) {
       std::cout << "Clustering..." << std::endl;
     }
 
     for (int i = 0; i < _iters; ++i) {
-      assign_clusters(train_mat, data_norms, num_threads);
-      update_centroids(train_mat);
-      split_clusters(train_mat);
+      assign_clusters(iter_mat, iter_norms, num_threads);
+      update_centroids(iter_mat);
+      split_clusters(iter_mat);
       postprocess_centroids();
       if (verbose)
-        std::cout << "Iteration " << i + 1 << "/" << _iters << " | Cost: " << cost(train_mat)
+        std::cout << "Iteration " << i + 1 << "/" << _iters << " | Objective: " << cost(iter_mat)
                   << std::endl;
     }
 
+    // After iterations, assign clusters using the full original data
+    _assignments.resize(n);
     assign_clusters(train_mat, data_norms, num_threads);
 
     if (_balanced) {
@@ -116,9 +140,9 @@ class KMeans {
       res[_assignments[i]].push_back(i);
     }
 
-    _trained = true;
-
     std::vector<int>().swap(_assignments);
+
+    _trained = true;
     return res;
   }
 
@@ -420,7 +444,7 @@ class KMeans {
       ++iters;
 
       if (verbose) {
-        std::cout << "Iteration " << iters << " | Cost: " << cost(train_mat)
+        std::cout << "Iteration " << iters << " | Objective: " << cost(train_mat)
                   << " | Max diff: " << n_max - n_min << std::endl;
       }
     }
@@ -432,6 +456,7 @@ class KMeans {
 
   const int _iters;
   const int _n_clusters;
+  const int _samples_per_cluster;
   const Distance _distance;
   const bool _balanced;
   const int _max_balance_diff;

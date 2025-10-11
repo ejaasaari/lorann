@@ -142,6 +142,31 @@ class TestKMeans:
         assert max(cluster_sizes) - min(cluster_sizes) <= 16
         assert kmeans.balanced
 
+    def test_kmeans_samples_per_cluster(self, mnist_data):
+        """Test samples_per_cluster parameter"""
+        data = mnist_data[:5000]
+
+        # Test with custom samples_per_cluster
+        kmeans = lorann.KMeans(n_clusters=64, iters=10, samples_per_cluster=128)
+        cluster_assignments = kmeans.train(data)
+
+        assert len(cluster_assignments) == 64
+        assert kmeans.trained
+
+        # Check that all points are assigned
+        all_points = []
+        for cluster in cluster_assignments:
+            all_points.extend(cluster)
+        assert len(all_points) == 5000
+        assert len(set(all_points)) == 5000
+
+        # Test with samples_per_cluster disabled (no sampling)
+        kmeans_no_sampling = lorann.KMeans(n_clusters=64, iters=10, samples_per_cluster=-1)
+        cluster_assignments_no_sampling = kmeans_no_sampling.train(data)
+
+        assert len(cluster_assignments_no_sampling) == 64
+        assert kmeans_no_sampling.trained
+
     def test_kmeans_errors(self, small_data):
         """Test error conditions"""
         kmeans = lorann.KMeans(n_clusters=10)

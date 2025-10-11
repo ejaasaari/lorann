@@ -415,6 +415,7 @@ class KMeans(object):
         self,
         n_clusters: int,
         iters: int = 25,
+        samples_per_cluster: int = 256,
         distance: int = IP,
         balanced: bool = False,
         max_balance_diff: int = 16,
@@ -426,6 +427,10 @@ class KMeans(object):
         Args:
             n_clusters: The number of clusters ($k$).
             iters: The number of $k$-means iterations. Defaults to 25.
+            samples_per_cluster: Number of points to sample per cluster for k-means iterations
+                (total sample size = samples_per_cluster * n_clusters). K-means iterations use this
+                subset for speed, while final assignments use the full dataset. Set to <= 0 to
+                disable sampling. Defaults to 256.
             distance: The distance measure to use. Either IP or L2. Defaults to IP.
             balanced: Whether to ensure clusters are balanced using an efficient balanced $k$-means
                 algorithm. Defaults to False.
@@ -446,6 +451,7 @@ class KMeans(object):
         self.index = lorannlib.KMeans(
             n_clusters,
             iters,
+            samples_per_cluster,
             distance,
             balanced,
             max_balance_diff,

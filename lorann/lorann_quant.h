@@ -204,20 +204,25 @@ class Lorann final : public LorannBase<T> {
 
     RowMatrix reduced_train_mat = train_mat.view * global_dim_reduction;
 
+    int to_sample = SAMPLED_POINTS_PER_CLUSTER;
+    if (_balanced || !approximate || to_sample * _n_clusters > 0.5f * _n_samples) {
+      to_sample = -1;
+    }
+
     /* clustering */
-    KMeans global_clustering(_n_clusters, KMEANS_ITERATIONS, _distance, _balanced,
+    KMeans global_clustering(_n_clusters, KMEANS_ITERATIONS, to_sample, _distance, _balanced,
                              BALANCED_KMEANS_MAX_DIFF, BALANCED_KMEANS_PENALTY);
 
     std::vector<std::vector<int>> cluster_train_map;
     if (query_mat.view.data() != train_mat.view.data()) {
       RowMatrix reduced_query_mat = query_mat.view * global_dim_reduction;
-      cluster_train_map = clustering(global_clustering, reduced_train_mat.data(),
-                                     reduced_train_mat.rows(), reduced_query_mat.data(),
-                                     reduced_query_mat.rows(), approximate, verbose, num_threads);
+      cluster_train_map =
+          clustering(global_clustering, reduced_train_mat.data(), reduced_train_mat.rows(),
+                     reduced_query_mat.data(), reduced_query_mat.rows(), verbose, num_threads);
     } else {
-      cluster_train_map = clustering(global_clustering, reduced_train_mat.data(),
-                                     reduced_train_mat.rows(), reduced_train_mat.data(),
-                                     reduced_train_mat.rows(), approximate, verbose, num_threads);
+      cluster_train_map =
+          clustering(global_clustering, reduced_train_mat.data(), reduced_train_mat.rows(),
+                     reduced_train_mat.data(), reduced_train_mat.rows(), verbose, num_threads);
     }
 
     /* rotate the cluster centroid matrix */

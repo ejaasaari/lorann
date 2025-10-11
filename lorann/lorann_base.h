@@ -238,21 +238,13 @@ class LorannBase {
 
   std::vector<std::vector<int>> clustering(KMeans &global_clustering, const float *data,
                                            const int n, const float *train_data, const int train_n,
-                                           const bool approximate, const bool verbose,
-                                           int num_threads) {
-    const int to_sample = SAMPLED_POINTS_PER_CLUSTER * _n_clusters;
-    if (!_balanced && approximate && to_sample < 0.5f * n) {
-      /* sample points for k-means */
-      const RowMatrix sampled =
-          sample_rows(Eigen::Map<const RowMatrix>(data, n, _global_dim), to_sample);
-      (void)global_clustering.train(sampled.data(), sampled.rows(), sampled.cols(), verbose,
-                                    num_threads);
-      _cluster_map = global_clustering.assign(data, n, 1);
+                                           const bool verbose, int num_threads) {
+    _cluster_map = global_clustering.train(data, n, _global_dim, verbose, num_threads);
+    if (_train_size > 1) {
+      return global_clustering.assign(train_data, train_n, _train_size);
     } else {
-      _cluster_map = global_clustering.train(data, n, _global_dim, verbose, num_threads);
+      return _cluster_map;
     }
-
-    return global_clustering.assign(train_data, train_n, _train_size);
   }
 
   friend class cereal::access;
