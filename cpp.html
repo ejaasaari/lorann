@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>C++ Reference &#8212; LoRANN 0.4.1 documentation</title>
+    <title>C++ Reference &#8212; LoRANN 0.4.2 documentation</title>
   
   
   
@@ -38,7 +38,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
 
-    <script src="_static/documentation_options.js?v=c87aa342"></script>
+    <script src="_static/documentation_options.js?v=ff822928"></script>
     <script src="_static/doctools.js?v=9bcbadda"></script>
     <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
@@ -111,7 +111,7 @@
   
   
   
-    <p class="title logo__title">LoRANN 0.4.1 documentation</p>
+    <p class="title logo__title">LoRANN 0.4.2 documentation</p>
   
 </a></div>
     
@@ -609,8 +609,8 @@
 <dd><div class="breathe-sectiondef docutils container">
 <p class="breathe-sectiondef-title rubric" id="breathe-section-title-public-functions">Public Functions</p>
 <dl class="cpp function">
-<dt class="sig sig-object cpp" id="_CPPv4N6Lorann6KMeans6KMeansEii8Distancebif">
-<span id="_CPPv3N6Lorann6KMeans6KMeansEii8Distancebif"></span><span id="_CPPv2N6Lorann6KMeans6KMeansEii8Distancebif"></span><span id="Lorann::KMeans::KMeans__i.i.Distance.b.i.float"></span><span class="target" id="classLorann_1_1KMeans_1ae12cb834fd4745159bf74f98be142a72"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">KMeans</span></span></span><span class="sig-paren">(</span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">n_clusters</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">iters</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">25</span></span>, <span class="n"><span class="pre">Distance</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">distance</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">IP</span></span>, <span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">balanced</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="k"><span class="pre">false</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">max_balance_diff</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">16</span></span>, <span class="kt"><span class="pre">float</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">penalty_factor</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">1.4</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6Lorann6KMeans6KMeansEii8Distancebif" title="Link to this definition">#</a><br /></dt>
+<dt class="sig sig-object cpp" id="_CPPv4N6Lorann6KMeans6KMeansEiii8Distancebif">
+<span id="_CPPv3N6Lorann6KMeans6KMeansEiii8Distancebif"></span><span id="_CPPv2N6Lorann6KMeans6KMeansEiii8Distancebif"></span><span id="Lorann::KMeans::KMeans__i.i.i.Distance.b.i.float"></span><span class="target" id="classLorann_1_1KMeans_1a75e3d9124096a78f3b9a6bad14af13d1"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">KMeans</span></span></span><span class="sig-paren">(</span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">n_clusters</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">iters</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">25</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">samples_per_cluster</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">256</span></span>, <span class="n"><span class="pre">Distance</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">distance</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">IP</span></span>, <span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">balanced</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="k"><span class="pre">false</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">max_balance_diff</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">16</span></span>, <span class="kt"><span class="pre">float</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">penalty_factor</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">1.4</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6Lorann6KMeans6KMeansEiii8Distancebif" title="Link to this definition">#</a><br /></dt>
 <dd><p>Construct a new <a class="reference internal" href="#classLorann_1_1KMeans"><span class="std std-ref">KMeans</span></a> object. </p>
 <p>NOTE: The constructor does not perform the actual clustering.</p>
 <dl class="field-list simple">
@@ -618,6 +618,7 @@
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>n_clusters</strong> – The number of clusters (k) </p></li>
 <li><p><strong>iters</strong> – The number of k-means iterations to perform. Defaults to 25. </p></li>
+<li><p><strong>samples_per_cluster</strong> – Number of points to sample per cluster for k-means iterations (total sample size = samples_per_cluster * n_clusters). K-means iterations use this subset for speed, while final assignments use the full dataset. Set to &lt;= 0 to disable sampling. </p></li>
 <li><p><strong>distance</strong> – The distance measure to use. Either IP or L2. Defaults to IP. </p></li>
 <li><p><strong>balanced</strong> – Whether to ensure clusters are balanced using an efficient balanced k-means algorithm. Defaults to false. </p></li>
 <li><p><strong>max_balance_diff</strong> – The maximum allowed difference in cluster sizes for balanced clustering. Used only if balanced = true. Defaults to 16. </p></li>
@@ -787,7 +788,7 @@
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#_CPPv4N6Lorann6KMeansE"><code class="docutils literal notranslate"><span class="pre">Lorann::KMeans</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#_CPPv4N6Lorann6KMeans6KMeansEii8Distancebif"><code class="docutils literal notranslate"><span class="pre">KMeans()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#_CPPv4N6Lorann6KMeans6KMeansEiii8Distancebif"><code class="docutils literal notranslate"><span class="pre">KMeans()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#_CPPv4N6Lorann6KMeans5trainEPKfKiKiKbi"><code class="docutils literal notranslate"><span class="pre">train()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#_CPPv4NK6Lorann6KMeans6assignEPKfii"><code class="docutils literal notranslate"><span class="pre">assign()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#_CPPv4NK6Lorann6KMeans14get_n_clustersEv"><code class="docutils literal notranslate"><span class="pre">get_n_clusters()</span></code></a></li>
