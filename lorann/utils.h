@@ -3,6 +3,7 @@
 #include <Eigen/Dense>
 #include <cstdint>
 #include <cstring>
+#include <numeric>
 #include <random>
 #include <rsvd/Constants.hpp>
 #include <rsvd/RandomizedSvd.hpp>
