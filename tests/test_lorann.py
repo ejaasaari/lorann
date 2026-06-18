@@ -413,6 +413,36 @@ class TestLorannIndex:
         )
         assert results.shape == (10, 5)
 
+    @pytest.mark.parametrize("quantization_bits", [4, 8, None])
+    def test_lorann_index_copy_owns_data(self, quantization_bits):
+        """Test that copy=True makes the index independent of the source array."""
+        rng = np.random.default_rng(42)
+        data = rng.standard_normal((256, 64), dtype=np.float32)
+        query_index = 137
+        query = data[query_index].copy()
+
+        index = lorann.LorannIndex(
+            data=data,
+            n_clusters=8,
+            global_dim=64,
+            quantization_bits=quantization_bits,
+            rank=16,
+            train_size=1,
+            distance=lorann.L2,
+            copy=True,
+        )
+
+        data[:] = rng.standard_normal(data.shape, dtype=np.float32)
+        index.build()
+
+        exact = index.exact_search(query, k=1)
+        approximate = index.search(
+            query, k=1, clusters_to_search=8, points_to_rerank=len(data)
+        )
+
+        assert exact[0] == query_index
+        assert approximate[0] == query_index
+
     def test_lorann_index_errors(self, mnist_data):
         """Test error conditions for LorannIndex"""
         # Test invalid data shape
