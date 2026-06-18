@@ -216,15 +216,29 @@ class LorannFP final : public LorannBase<T> {
     _A.resize(_n_clusters);
     _B.resize(_n_clusters);
 
+    int completed_clusters = 0;
+    auto report_progress = [&]() {
+      if (!verbose) return;
+#ifdef _OPENMP
+#pragma omp critical(lorann_fp_progress)
+#endif
+      {
+        ++completed_clusters;
+        if (completed_clusters % 100 == 0 || completed_clusters == _n_clusters) {
+          std::cout << "Cluster model build progress: " << completed_clusters << "/" << _n_clusters
+                    << std::endl;
+        }
+      }
+    };
+
 #ifdef _OPENMP
 #pragma omp parallel for num_threads(num_threads)
 #endif
     for (int i = 0; i < _n_clusters; ++i) {
-      if (verbose && i % 100 == 0 && i > 0) {
-        std::cout << "Cluster model build progress: " << i + 1 << "/" << _n_clusters << std::endl;
+      if (_cluster_map[i].size() == 0) {
+        report_progress();
+        continue;
       }
-
-      if (_cluster_map[i].size() == 0) continue;
 
       if (_distance == L2) {
         _cluster_norms[i] = _data_norms(_cluster_map[i]);
@@ -258,6 +272,8 @@ class LorannFP final : public LorannBase<T> {
       Eigen::MatrixXf V = compute_V(Y_hat, _max_rank);
       _A[i] = beta_hat * V;
       _B[i] = V.transpose();
+
+      report_progress();
     }
 
     _cluster_sizes = Eigen::VectorXi(_n_clusters);
