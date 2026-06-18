@@ -116,9 +116,10 @@ class LorannFP final : public LorannBase<T> {
 
 #if defined(LORANN_USE_MKL) || defined(LORANN_USE_OPENBLAS)
       if (_distance == L2) {
-        std::memcpy(&all_distances[curr], _cluster_norms[cluster].data(), sizeof(float) * sz);
+        std::memcpy(&all_distances[curr], _cluster_norms[cluster].data(),
+                    static_cast<std::size_t>(sz) * sizeof(float));
       } else {
-        std::memset(&all_distances[curr], 0, sizeof(float) * sz);
+        std::memset(&all_distances[curr], 0, static_cast<std::size_t>(sz) * sizeof(float));
       }
 
       cblas_sgemv(CblasRowMajor, CblasTrans, A.rows(), A.cols(), 1, A.data(), A.cols(),
@@ -134,7 +135,8 @@ class LorannFP final : public LorannBase<T> {
         resvec = (transformed_query * A) * B;
 #endif
 
-      std::memcpy(&all_idxs[curr], _cluster_map[cluster].data(), sz * sizeof(int));
+      std::memcpy(&all_idxs[curr], _cluster_map[cluster].data(),
+                  static_cast<std::size_t>(sz) * sizeof(int));
       curr += sz;
     }
 
@@ -170,7 +172,9 @@ class LorannFP final : public LorannBase<T> {
     MappedMatrix query_mat = detail::Traits<T>::to_float_matrix(query_data, query_n, _dim);
 
     int to_sample = SAMPLED_POINTS_PER_CLUSTER;
-    if (_balanced || !approximate || to_sample * _n_clusters > 0.5f * _n_samples) {
+    if (_balanced || !approximate ||
+        static_cast<std::int64_t>(to_sample) * static_cast<std::int64_t>(_n_clusters) >
+            0.5 * static_cast<double>(_n_samples)) {
       to_sample = -1;
     }
 

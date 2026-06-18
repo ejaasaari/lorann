@@ -30,8 +30,9 @@ struct Traits<simsimd_f16_t> {
 
   static inline Lorann::MappedMatrix to_float_matrix(const simsimd_f16_t *data, const int n,
                                                      const int d) {
-    auto buf = make_aligned_shared_array<float>(n * d);
-    convert_f16_to_f32(data, buf.get(), n * d);
+    const std::size_t count = static_cast<std::size_t>(n) * static_cast<std::size_t>(d);
+    auto buf = make_aligned_shared_array<float>(count);
+    convert_f16_to_f32(data, buf.get(), count);
     return {buf.get(), n, d, buf};
   }
 

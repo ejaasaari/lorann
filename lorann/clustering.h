@@ -100,9 +100,10 @@ class KMeans {
     Vector iter_norms = data_norms;
 
     if (_samples_per_cluster > 0) {
-      int sample_size = _samples_per_cluster * _n_clusters;
+      const std::int64_t sample_size =
+          static_cast<std::int64_t>(_samples_per_cluster) * static_cast<std::int64_t>(_n_clusters);
       if (sample_size < n) {
-        sampled_training_mat = sample_rows(train_mat, sample_size);
+        sampled_training_mat = sample_rows(train_mat, static_cast<int>(sample_size));
         iter_data_ptr = sampled_training_mat.data();
         iter_n = sampled_training_mat.rows();
         iter_norms = sampled_training_mat.rowwise().squaredNorm();
@@ -169,10 +170,13 @@ class KMeans {
 
     Vector centroid_norms = _centroids.rowwise().squaredNorm();
 
-    std::vector<int> idxs = std::vector<int>(n * k);
+    const std::size_t idx_count = static_cast<std::size_t>(n) * static_cast<std::size_t>(k);
+    std::vector<int> idxs(idx_count);
     for (int i = 0; i < n; ++i) {
-      Eigen::Map<const Vector> q =
-          Eigen::Map<const Vector>(data + i * _centroids.cols(), _centroids.cols());
+      const std::size_t data_offset =
+          static_cast<std::size_t>(i) * static_cast<std::size_t>(_centroids.cols());
+      const std::size_t idx_offset = static_cast<std::size_t>(i) * static_cast<std::size_t>(k);
+      Eigen::Map<const Vector> q = Eigen::Map<const Vector>(data + data_offset, _centroids.cols());
       Vector dots = _centroids * q.transpose();
       Vector dists;
       if (_distance == L2) {
@@ -181,13 +185,14 @@ class KMeans {
         dists = -dots;
       }
 
-      select_k(k, &idxs[i * k], dists.size(), NULL, dists.data());
+      select_k(k, &idxs[idx_offset], dists.size(), NULL, dists.data());
     }
 
     std::vector<std::vector<int>> res(_n_clusters);
     for (int i = 0; i < n; ++i) {
+      const std::size_t idx_offset = static_cast<std::size_t>(i) * static_cast<std::size_t>(k);
       for (int j = 0; j < k; ++j) {
-        res[idxs[i * k + j]].push_back(i);
+        res[idxs[idx_offset + static_cast<std::size_t>(j)]].push_back(i);
       }
     }
 
@@ -265,7 +270,7 @@ class KMeans {
       }
     }
 
-    std::memset(_cluster_sizes.data(), 0, _n_clusters * sizeof(float));
+    std::memset(_cluster_sizes.data(), 0, static_cast<std::size_t>(_n_clusters) * sizeof(float));
     for (int i = 0; i < train_mat.rows(); ++i) {
       _cluster_sizes[_assignments[i]] += 1;
     }

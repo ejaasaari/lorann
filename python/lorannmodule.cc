@@ -173,7 +173,9 @@ static PyObject *kmeans_get_centroids(KMeansIndex *self, PyObject *args) {
     npy_intp dims[2] = {n_clusters, dim};
     PyObject *ret = PyArray_SimpleNew(2, dims, NPY_FLOAT32);
     float *outdata = reinterpret_cast<float *>(PyArray_DATA((PyArrayObject *)ret));
-    std::memcpy(outdata, centroids.data(), n_clusters * dim * sizeof(float));
+    const std::size_t count =
+        static_cast<std::size_t>(n_clusters) * static_cast<std::size_t>(dim);
+    std::memcpy(outdata, centroids.data(), count * sizeof(float));
 
     return ret;
   } catch (const std::exception &e) {
@@ -431,8 +433,12 @@ static PyObject *lorann_search(LorannIndex<T> *self, PyObject *args) {
 #pragma omp parallel for num_threads(n_threads)
 #endif
       for (int i = 0; i < n; ++i) {
-        self->index->search(indata + i * dim, k, clusters_to_search, points_to_rerank,
-                            out_idx + i * k, out_distances + i * k);
+        const std::size_t input_offset =
+            static_cast<std::size_t>(i) * static_cast<std::size_t>(dim);
+        const std::size_t output_offset =
+            static_cast<std::size_t>(i) * static_cast<std::size_t>(k);
+        self->index->search(indata + input_offset, k, clusters_to_search, points_to_rerank,
+                            out_idx + output_offset, out_distances + output_offset);
       }
       Py_END_ALLOW_THREADS;
 
@@ -446,8 +452,12 @@ static PyObject *lorann_search(LorannIndex<T> *self, PyObject *args) {
 #pragma omp parallel for num_threads(n_threads)
 #endif
       for (int i = 0; i < n; ++i) {
-        self->index->search(indata + i * dim, k, clusters_to_search, points_to_rerank,
-                            out_idx + i * k);
+        const std::size_t input_offset =
+            static_cast<std::size_t>(i) * static_cast<std::size_t>(dim);
+        const std::size_t output_offset =
+            static_cast<std::size_t>(i) * static_cast<std::size_t>(k);
+        self->index->search(indata + input_offset, k, clusters_to_search, points_to_rerank,
+                            out_idx + output_offset);
       }
       Py_END_ALLOW_THREADS;
       return nearest;
@@ -517,7 +527,12 @@ static PyObject *lorann_exact_search(LorannIndex<T> *self, PyObject *args) {
 #pragma omp parallel for num_threads(n_threads)
 #endif
       for (int i = 0; i < n; ++i) {
-        self->index->exact_search(indata + i * dim, k, out_idx + i * k, out_distances + i * k);
+        const std::size_t input_offset =
+            static_cast<std::size_t>(i) * static_cast<std::size_t>(dim);
+        const std::size_t output_offset =
+            static_cast<std::size_t>(i) * static_cast<std::size_t>(k);
+        self->index->exact_search(indata + input_offset, k, out_idx + output_offset,
+                                  out_distances + output_offset);
       }
       Py_END_ALLOW_THREADS;
 
@@ -531,7 +546,11 @@ static PyObject *lorann_exact_search(LorannIndex<T> *self, PyObject *args) {
 #pragma omp parallel for num_threads(n_threads)
 #endif
       for (int i = 0; i < n; ++i) {
-        self->index->exact_search(indata + i * dim, k, out_idx + i * k);
+        const std::size_t input_offset =
+            static_cast<std::size_t>(i) * static_cast<std::size_t>(dim);
+        const std::size_t output_offset =
+            static_cast<std::size_t>(i) * static_cast<std::size_t>(k);
+        self->index->exact_search(indata + input_offset, k, out_idx + output_offset);
       }
       Py_END_ALLOW_THREADS;
       return nearest;
@@ -739,7 +758,9 @@ static PyObject *lorann_compute_V(PyObject *self, PyObject *args) {
     ret = PyArray_SimpleNew(2, dims, NPY_FLOAT32);
 
     float *outdata = reinterpret_cast<float *>(PyArray_DATA((PyArrayObject *)ret));
-    std::memcpy(outdata, V.data(), V.rows() * V.cols() * sizeof(float));
+    const std::size_t count =
+        static_cast<std::size_t>(V.rows()) * static_cast<std::size_t>(V.cols());
+    std::memcpy(outdata, V.data(), count * sizeof(float));
 
     return ret;
   } catch (const std::exception &e) {

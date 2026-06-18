@@ -154,7 +154,8 @@ class Lorann final : public LorannBase<T> {
         add_inplace(_cluster_norms[cluster].data(), &all_distances[curr],
                     _cluster_norms[cluster].size());
 
-      std::memcpy(&all_idxs[curr], _cluster_map[cluster].data(), sz * sizeof(int));
+      std::memcpy(&all_idxs[curr], _cluster_map[cluster].data(),
+                  static_cast<std::size_t>(sz) * sizeof(int));
       curr += sz;
     }
 
@@ -205,7 +206,9 @@ class Lorann final : public LorannBase<T> {
     RowMatrix reduced_train_mat = train_mat.view * global_dim_reduction;
 
     int to_sample = SAMPLED_POINTS_PER_CLUSTER;
-    if (_balanced || !approximate || to_sample * _n_clusters > 0.5f * _n_samples) {
+    if (_balanced || !approximate ||
+        static_cast<std::int64_t>(to_sample) * static_cast<std::int64_t>(_n_clusters) >
+            0.5 * static_cast<double>(_n_samples)) {
       to_sample = -1;
     }
 

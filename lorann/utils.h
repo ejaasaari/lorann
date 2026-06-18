@@ -103,9 +103,10 @@ struct ArgsortComparator {
 };
 
 template <typename T>
-inline void check_for_nan(const T *data, int n, int dim) {
+inline void check_for_nan(const T *data, const std::size_t n, const std::size_t dim) {
   if constexpr (std::is_floating_point<T>::value) {
-    for (int i = 0; i < n * dim; ++i) {
+    const std::size_t count = static_cast<std::size_t>(n) * static_cast<std::size_t>(dim);
+    for (std::size_t i = 0; i < count; ++i) {
       if (std::isnan(data[i])) {
         throw std::invalid_argument("Data matrix contains NaN");
       }

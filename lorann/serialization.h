@@ -20,7 +20,8 @@ save(Archive &ar,
   const std::int32_t cols = static_cast<std::int32_t>(matrix.cols());
   ar(rows);
   ar(cols);
-  ar(binary_data(matrix.data(), rows * cols * sizeof(Scalar_)));
+  const std::size_t count = static_cast<std::size_t>(rows) * static_cast<std::size_t>(cols);
+  ar(binary_data(matrix.data(), count * sizeof(Scalar_)));
 };
 
 template <class Archive, class Scalar_, int Rows_, int Cols_, int Options_, int MaxRows_,
@@ -34,7 +35,8 @@ load(Archive &ar, Eigen::Matrix<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCo
   ar(cols);
 
   matrix.resize(rows, cols);
-  ar(binary_data(matrix.data(), static_cast<std::size_t>(rows * cols * sizeof(Scalar_))));
+  const std::size_t count = static_cast<std::size_t>(rows) * static_cast<std::size_t>(cols);
+  ar(binary_data(matrix.data(), count * sizeof(Scalar_)));
 };
 
 } /* namespace cereal */

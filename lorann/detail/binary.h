@@ -40,8 +40,9 @@ struct Traits<BinaryType> {
 
   static inline Lorann::MappedMatrix to_float_matrix(const BinaryType *data, const int n,
                                                      const int d) {
-    auto buf = make_aligned_shared_array<float>(n * d);
-    unpack(reinterpret_cast<const uint8_t *>(data), buf.get(), n * d);
+    const std::size_t count = static_cast<std::size_t>(n) * static_cast<std::size_t>(d);
+    auto buf = make_aligned_shared_array<float>(count);
+    unpack(reinterpret_cast<const uint8_t *>(data), buf.get(), count);
     return {buf.get(), n, d, buf};
   }
 

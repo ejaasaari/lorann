@@ -45,14 +45,15 @@ class LorannBase {
     LORANN_ENSURE_POSITIVE(rank);
     LORANN_ENSURE_POSITIVE(train_size);
 
-    const int width = d / detail::Traits<T>::dim_divisor;
+    const std::size_t width = static_cast<std::size_t>(d) / detail::Traits<T>::dim_divisor;
     check_for_nan(data, m, width);
 
     if (!copy) {
       _data = std::unique_ptr<T[], void (*)(T *)>(data, [](T *) { /* no-op for external data */ });
     } else {
-      _data = make_aligned_array<T>(m * width);
-      std::memcpy(_data.get(), data, m * width * sizeof(T));
+      const std::size_t count = static_cast<std::size_t>(m) * width;
+      _data = make_aligned_array<T>(count);
+      std::memcpy(_data.get(), data, count * sizeof(T));
     }
   }
 
@@ -131,15 +132,17 @@ class LorannBase {
     DistVector dist(_n_samples);
 
     const T *data_ptr = _data.get();
-    const int width = _dim / detail::Traits<T>::dim_divisor;
+    const std::size_t width = static_cast<std::size_t>(_dim) / detail::Traits<T>::dim_divisor;
 
     if (_distance == L2) {
       for (int i = 0; i < _n_samples; ++i) {
-        dist[i] = detail::Traits<T>::squared_euclidean(q, data_ptr + i * width, width);
+        const std::size_t offset = static_cast<std::size_t>(i) * width;
+        dist[i] = detail::Traits<T>::squared_euclidean(q, data_ptr + offset, width);
       }
     } else {
       for (int i = 0; i < _n_samples; ++i) {
-        dist[i] = -detail::Traits<T>::dot_product(q, data_ptr + i * width, width);
+        const std::size_t offset = static_cast<std::size_t>(i) * width;
+        dist[i] = -detail::Traits<T>::dot_product(q, data_ptr + offset, width);
       }
     }
 
@@ -203,15 +206,17 @@ class LorannBase {
     DistVector dist(n);
 
     const T *data_ptr = _data.get();
-    const int width = _dim / detail::Traits<T>::dim_divisor;
+    const std::size_t width = static_cast<std::size_t>(_dim) / detail::Traits<T>::dim_divisor;
 
     if (_distance == L2) {
       for (int i = 0; i < n; ++i) {
-        dist[i] = detail::Traits<T>::squared_euclidean(q, data_ptr + in[i] * width, width);
+        const std::size_t offset = static_cast<std::size_t>(in[i]) * width;
+        dist[i] = detail::Traits<T>::squared_euclidean(q, data_ptr + offset, width);
       }
     } else {
       for (int i = 0; i < n; ++i) {
-        dist[i] = -detail::Traits<T>::dot_product(q, data_ptr + in[i] * width, width);
+        const std::size_t offset = static_cast<std::size_t>(in[i]) * width;
+        dist[i] = -detail::Traits<T>::dot_product(q, data_ptr + offset, width);
       }
     }
 
@@ -251,13 +256,14 @@ class LorannBase {
 
   template <class Archive>
   void save(Archive &ar) const {
-    const int width = _dim / detail::Traits<T>::dim_divisor;
+    const std::size_t width = static_cast<std::size_t>(_dim) / detail::Traits<T>::dim_divisor;
+    const std::size_t count = static_cast<std::size_t>(_n_samples) * width;
 
     ar(_n_samples);
     ar(_dim);
-    ar(cereal::binary_data(_data.get(), sizeof(T) * _n_samples * width), _n_clusters, _global_dim,
-       _max_rank, _train_size, static_cast<int>(_distance), _balanced, _cluster_map,
-       _global_centroid_norms, _data_norms);
+    ar(cereal::binary_data(_data.get(), count * sizeof(T)), _n_clusters, _global_dim, _max_rank,
+       _train_size, static_cast<int>(_distance), _balanced, _cluster_map, _global_centroid_norms,
+       _data_norms);
   }
 
   template <class Archive>
@@ -265,13 +271,13 @@ class LorannBase {
     ar(_n_samples);
     ar(_dim);
 
-    const int width = _dim / detail::Traits<T>::dim_divisor;
-    _data = make_aligned_array<T>(_n_samples * width);
+    const std::size_t width = static_cast<std::size_t>(_dim) / detail::Traits<T>::dim_divisor;
+    const std::size_t count = static_cast<std::size_t>(_n_samples) * width;
+    _data = make_aligned_array<T>(count);
 
     int distance_tmp;
-    ar(cereal::binary_data(_data.get(), sizeof(T) * _n_samples * width), _n_clusters, _global_dim,
-       _max_rank, _train_size, distance_tmp, _balanced, _cluster_map, _global_centroid_norms,
-       _data_norms);
+    ar(cereal::binary_data(_data.get(), count * sizeof(T)), _n_clusters, _global_dim, _max_rank,
+       _train_size, distance_tmp, _balanced, _cluster_map, _global_centroid_norms, _data_norms);
 
     _distance = static_cast<Distance>(distance_tmp);
     _cluster_sizes = Eigen::VectorXi(_n_clusters);
