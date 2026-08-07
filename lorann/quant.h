@@ -98,9 +98,15 @@ LORANN_ALWAYS_INLINE inline __m512i dpbusd(__m512i c, const __m512i a, const __m
 
 #if (defined(__ARM_NEON) || defined(__ARM_NEON__)) && defined(__ARM_FEATURE_DOTPROD)
 #pragma GCC push_options
+#if defined(__ARM_FEATURE_MATMUL_INT8)
+#pragma GCC target("arch=armv8.2-a+dotprod+i8mm")
+#pragma clang attribute push(__attribute__((target("arch=armv8.2-a+dotprod+i8mm"))), \
+                             apply_to = function)
+#else
 #pragma GCC target("arch=armv8.2-a+dotprod")
 #pragma clang attribute push(__attribute__((target("arch=armv8.2-a+dotprod"))), \
                              apply_to = function)
+#endif
 #endif
 
 struct SQQuantizer {

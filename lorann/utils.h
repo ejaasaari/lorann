@@ -16,6 +16,10 @@
 
 #include "miniselect/pdqselect.h"
 
+#if defined(__ARM_FEATURE_SVE)
+#include <arm_sve.h>
+#endif
+
 #if defined(__ARM_NEON) || defined(__ARM_NEON__)
 #include <arm_neon.h>
 #else
@@ -171,6 +175,21 @@ static inline void add_inplace(const float *LORANN_RESTRICT v, float *LORANN_RES
 
   for (; i < n; ++i) {
     r[i] += v[i];
+  }
+}
+#elif defined(__ARM_FEATURE_SVE)
+static inline void add_inplace(const float *LORANN_RESTRICT v, float *LORANN_RESTRICT r,
+                               const size_t n) {
+  size_t i = 0;
+  const size_t lanes = svcntw();
+
+  while (i < n) {
+    const svbool_t active =
+        svwhilelt_b32(static_cast<uint64_t>(i), static_cast<uint64_t>(n));
+    const svfloat32_t v_vec = svld1_f32(active, v + i);
+    const svfloat32_t r_vec = svld1_f32(active, r + i);
+    svst1_f32(active, r + i, svadd_f32_x(active, r_vec, v_vec));
+    i += lanes;
   }
 }
 #elif defined(__ARM_NEON) || defined(__ARM_NEON__)
