@@ -1,15 +1,12 @@
 #pragma once
 
-#ifdef _OPENMP
-#include <omp.h>
-#endif
-
 #define EIGEN_DONT_PARALLELIZE
 
 #include <Eigen/Dense>
 #include <cstring>
 #include <memory>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 #include "lorann_base.h"
@@ -179,21 +176,14 @@ class Lorann final : public LorannBase<T> {
    */
   void build(const T *query_data, const int query_n, const bool approximate = true,
              const bool verbose = false, int num_threads = -1) override {
-    LORANN_ENSURE_POSITIVE(query_n);
-
-#ifdef _OPENMP
-    if (num_threads <= 0) {
-      num_threads = omp_get_max_threads();
-    }
-#endif
-
-    MappedMatrix train_mat = detail::Traits<T>::to_float_matrix(_data.get(), _n_samples, _dim);
-    MappedMatrix query_mat = detail::Traits<T>::to_float_matrix(query_data, query_n, _dim);
+    auto build_context = this->prepare_build(query_data, query_n, num_threads);
+    const auto &train_mat = build_context.train_mat.view;
+    const auto &query_mat = build_context.query_mat.view;
 
     /* compute dimensionality reduction matrix */
-    RowMatrix query_sample = sample_rows(query_mat.view, GLOBAL_DIM_REDUCTION_SAMPLES);
+    RowMatrix query_sample = sample_rows(query_mat, GLOBAL_DIM_REDUCTION_SAMPLES);
     Eigen::MatrixXf global_dim_reduction =
-        compute_principal_components(query_sample.transpose() * query_sample, _global_dim);
+        compute_principal_components_from_rows(query_sample, _global_dim);
 
     /* rotate the dimensionality reduction matrix beforehand so that we do not need to rotate
      * queries at query time */
@@ -203,41 +193,31 @@ class Lorann final : public LorannBase<T> {
     rotation.block(1, 1, _global_dim - 1, _global_dim - 1) = sub_rotation;
     _global_transform = global_dim_reduction * rotation;
 
-    RowMatrix reduced_train_mat = train_mat.view * global_dim_reduction;
+    /* Project directly into the final rotated basis. Because rotation is orthogonal, clustering
+     * in these coordinates has the same objective as clustering in the PCA coordinates. Let n be
+     * the point count, d the input dimension, s the reduced dimension, q the number of distinct
+     * training-query rows, and w their average cluster reuse. Caching replaces O((n + w*q) * d*s)
+     * repeated projection work with O((n + q) * d*s) projection work and O((n + w*q) * s) row
+     * gathering. Folding rotation into _global_transform also avoids a separate
+     * O((n + q) * s^2) pass over the cached rows. */
+    typename LorannBase<T>::ProjectedBuildData projected_data(build_context, _global_transform);
 
-    int to_sample = SAMPLED_POINTS_PER_CLUSTER;
-    if (_balanced || !approximate ||
-        static_cast<std::int64_t>(to_sample) * static_cast<std::int64_t>(_n_clusters) >
-            0.5 * static_cast<double>(_n_samples)) {
-      to_sample = -1;
-    }
+    KMeans global_clustering = this->make_global_clustering(approximate);
+    std::vector<std::vector<int>> cluster_train_map =
+        this->cluster_reduced_data(global_clustering, build_context, projected_data.train_rows(),
+                                   projected_data.query_rows(), verbose);
 
-    /* clustering */
-    KMeans global_clustering(_n_clusters, KMEANS_ITERATIONS, to_sample, _distance, _balanced,
-                             BALANCED_KMEANS_MAX_DIFF, BALANCED_KMEANS_PENALTY);
+    const auto projected_usage =
+        this->projected_data_usage(build_context, cluster_train_map, approximate);
+    projected_data.retain(projected_usage);
 
-    std::vector<std::vector<int>> cluster_train_map;
-    if (query_mat.view.data() != train_mat.view.data()) {
-      RowMatrix reduced_query_mat = query_mat.view * global_dim_reduction;
-      cluster_train_map =
-          clustering(global_clustering, reduced_train_mat.data(), reduced_train_mat.rows(),
-                     reduced_query_mat.data(), reduced_query_mat.rows(), verbose, num_threads);
-    } else {
-      cluster_train_map =
-          clustering(global_clustering, reduced_train_mat.data(), reduced_train_mat.rows(),
-                     reduced_train_mat.data(), reduced_train_mat.rows(), verbose, num_threads);
-    }
-
-    /* rotate the cluster centroid matrix */
-    RowMatrix centroid_mat = global_clustering.get_centroids();
-    ColMatrix centroid_mat_rotated = (centroid_mat * rotation).transpose();
+    /* The centroids are already expressed in the final rotated basis. */
+    RowMatrix centroid_mat = std::move(global_clustering).get_centroids();
+    ColMatrix centroid_mat_rotated = centroid_mat.transpose();
     Vector centroid_fix = centroid_mat_rotated.row(0);
     centroid_mat_rotated.row(0).array() *= 0;
 
-    if (_distance == L2) {
-      _global_centroid_norms = centroid_mat.rowwise().squaredNorm();
-      _data_norms = train_mat.view.rowwise().squaredNorm();
-    }
+    this->initialize_distance_data(train_mat, centroid_mat);
 
     /* quantize the cluster centroids */
     _centroids_quantized = ColMatrixUInt8(centroid_mat_rotated.rows(), centroid_mat_rotated.cols());
@@ -252,98 +232,41 @@ class Lorann final : public LorannBase<T> {
     _A_corrections.resize(_n_clusters);
     _B_corrections.resize(_n_clusters);
 
-    if (_distance == L2) {
-      _cluster_norms.resize(_n_clusters);
+    Eigen::MatrixXf rank_rotation = Eigen::MatrixXf::Zero(_max_rank, _max_rank);
+    rank_rotation(0, 0) = 1;
+    if (_max_rank > 1) {
+      rank_rotation.block(1, 1, _max_rank - 1, _max_rank - 1) =
+          generate_rotation_matrix(_max_rank - 1);
     }
 
-    int completed_clusters = 0;
-    auto report_progress = [&]() {
-      if (!verbose) return;
-#ifdef _OPENMP
-#pragma omp critical(lorann_quant_progress)
-#endif
-      {
-        ++completed_clusters;
-        if (completed_clusters % 100 == 0 || completed_clusters == _n_clusters) {
-          std::cout << "Cluster model build progress: " << completed_clusters << "/" << _n_clusters
-                    << std::endl;
-        }
-      }
-    };
+    this->build_cluster_models(
+        build_context, cluster_train_map, &projected_data, approximate, verbose, _cluster_norms,
+        [&](const int i, const RowMatrix &A_before_rank_rotation, const Eigen::MatrixXf &V) {
+          /* Apply the same rank-space rotation to every cluster. */
+          ColMatrix A = A_before_rank_rotation * rank_rotation;
+          ColMatrix B = rank_rotation.transpose() * V.transpose();
 
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(num_threads)
-#endif
-    for (int i = 0; i < _n_clusters; ++i) {
-      if (_cluster_map[i].size() == 0) {
-        report_progress();
-        continue;
-      }
+          /* quantize the A and B matrices */
+          ColMatrixUInt8 A_quantized(A.rows() / quant_data.div_factor, A.cols());
+          ColMatrixUInt8 B_quantized((B.rows() - 1) / quant_data.div_factor, B.cols());
+          Vector A_correction(A.cols() * 2);
+          Vector B_correction(B.cols() * 2);
 
-      if (_distance == L2) {
-        _cluster_norms[i] = _data_norms(_cluster_map[i]);
-      }
+          Vector A_fix = A.row(0);
+          A.row(0).array() *= 0;
+          Vector B_fix = B.row(0);
 
-      RowMatrix pts = train_mat.view(_cluster_map[i], Eigen::placeholders::all);
-      RowMatrix Q;
+          A_correction(Eigen::seqN(A.cols(), A.cols())) = A_fix;
+          B_correction(Eigen::seqN(B.cols(), B.cols())) = B_fix;
 
-      if (cluster_train_map[i].size() >= _cluster_map[i].size()) {
-        Q = query_mat.view(cluster_train_map[i], Eigen::placeholders::all);
-      } else {
-        Q = pts;
-      }
+          quant_data.quantize_matrix_A_unsigned(A, A_quantized.data(), A_correction.data());
+          quant_data.quantize_matrix_B_unsigned(B, B_quantized.data(), B_correction.data());
 
-      /* compute reduced-rank regression solution */
-      Eigen::MatrixXf beta_hat, Y_hat;
-      if (approximate) {
-        beta_hat = (pts * _global_transform).transpose();
-        Y_hat = (Q * _global_transform) * beta_hat;
-      } else {
-        Eigen::MatrixXf X = Q * _global_transform;
-        beta_hat = X.colPivHouseholderQr().solve(Q * pts.transpose());
-        Y_hat = X * beta_hat;
-      }
-      Eigen::MatrixXf V = compute_V(Y_hat, _max_rank);
-
-      /* randomly rotate the matrix V */
-      Eigen::MatrixXf sub_rot_mat = generate_rotation_matrix(V.cols() - 1);
-      Eigen::MatrixXf rot_mat = Eigen::MatrixXf::Zero(V.cols(), V.cols());
-      rot_mat(0, 0) = 1;
-      rot_mat.block(1, 1, V.cols() - 1, V.cols() - 1) = sub_rot_mat;
-      Eigen::MatrixXf V_rotated = V * rot_mat;
-
-      ColMatrix A = beta_hat * V_rotated;
-      ColMatrix B = V_rotated.transpose();
-
-      /* quantize the A and B matrices */
-      ColMatrixUInt8 A_quantized(A.rows() / quant_data.div_factor, A.cols());
-      ColMatrixUInt8 B_quantized((B.rows() - 1) / quant_data.div_factor, B.cols());
-      Vector A_correction(A.cols() * 2);
-      Vector B_correction(B.cols() * 2);
-
-      Vector A_fix = A.row(0);
-      A.row(0).array() *= 0;
-      Vector B_fix = B.row(0);
-
-      A_correction(Eigen::seqN(A.cols(), A.cols())) = A_fix;
-      B_correction(Eigen::seqN(B.cols(), B.cols())) = B_fix;
-
-      quant_data.quantize_matrix_A_unsigned(A, A_quantized.data(), A_correction.data());
-      quant_data.quantize_matrix_B_unsigned(B, B_quantized.data(), B_correction.data());
-
-      _A[i] = A_quantized;
-      _B[i] = B_quantized;
-
-      _A_corrections[i] = A_correction;
-      _B_corrections[i] = B_correction;
-
-      report_progress();
-    }
-
-    _cluster_sizes = Eigen::VectorXi(_n_clusters);
-    for (int i = 0; i < _n_clusters; ++i) {
-      _cluster_sizes(i) = static_cast<int>(_cluster_map[i].size());
-    }
+          _A[i] = std::move(A_quantized);
+          _B[i] = std::move(B_quantized);
+          _A_corrections[i] = std::move(A_correction);
+          _B_corrections[i] = std::move(B_correction);
+        });
   }
 
  private:
@@ -388,7 +311,6 @@ class Lorann final : public LorannBase<T> {
   std::vector<Vector> _B_corrections;
   std::vector<Vector> _cluster_norms;
 
-  using LorannBase<T>::clustering;
   using LorannBase<T>::select_final;
 
   using LorannBase<T>::_data;

@@ -35,7 +35,7 @@
 #endif
 #endif
 
-#define RSVD_OVERSAMPLES 10
+#define RSVD_OVERSAMPLES 5
 #define RSVD_N_ITER 4
 
 #define LORANN_MIN(a, b) ((a) < (b) ? (a) : (b))
@@ -110,10 +110,12 @@ template <typename T>
 inline void check_for_nan(const T *data, const std::size_t n, const std::size_t dim) {
   if constexpr (std::is_floating_point<T>::value) {
     const std::size_t count = static_cast<std::size_t>(n) * static_cast<std::size_t>(dim);
+    bool has_nan = false;
     for (std::size_t i = 0; i < count; ++i) {
-      if (std::isnan(data[i])) {
-        throw std::invalid_argument("Data matrix contains NaN");
-      }
+      has_nan |= std::isnan(data[i]);
+    }
+    if (has_nan) {
+      throw std::invalid_argument("Data matrix contains NaN");
     }
   }
 }
@@ -184,8 +186,7 @@ static inline void add_inplace(const float *LORANN_RESTRICT v, float *LORANN_RES
   const size_t lanes = svcntw();
 
   while (i < n) {
-    const svbool_t active =
-        svwhilelt_b32(static_cast<uint64_t>(i), static_cast<uint64_t>(n));
+    const svbool_t active = svwhilelt_b32(static_cast<uint64_t>(i), static_cast<uint64_t>(n));
     const svfloat32_t v_vec = svld1_f32(active, v + i);
     const svfloat32_t r_vec = svld1_f32(active, r + i);
     svst1_f32(active, r + i, svadd_f32_x(active, r_vec, v_vec));
@@ -344,19 +345,41 @@ static inline Eigen::MatrixXf compute_principal_components(const Eigen::MatrixXf
   return principal_components.rowwise().reverse();
 }
 
+static inline Eigen::MatrixXf compute_principal_components_from_rows(const RowMatrix &X,
+                                                                     const int n_columns) {
+  Eigen::MatrixXf gram = Eigen::MatrixXf::Zero(X.cols(), X.cols());
+  gram.selfadjointView<Eigen::Lower>().rankUpdate(X.transpose());
+  return compute_principal_components(gram, n_columns);
+}
+
 /* Computes V_r, the first r right singular vectors of X */
 static inline Eigen::MatrixXf compute_V(const Eigen::MatrixXf &X, const int rank) {
+  Eigen::MatrixXf V = Eigen::MatrixXf::Zero(X.cols(), rank);
+  const long effective_rank =
+      std::min({static_cast<long>(X.rows()), static_cast<long>(X.cols()), static_cast<long>(rank)});
+  if (effective_rank == 0) return V;
+
   /* randomized (approximate) SVD */
   std::mt19937_64 randomEngine{};
   Rsvd::RandomizedSvd<Eigen::MatrixXf, std::mt19937_64, Rsvd::SubspaceIterationConditioner::Lu>
       rsvd(randomEngine);
-  rsvd.compute(X, std::min(static_cast<long>(X.cols()), static_cast<long>(rank)), RSVD_OVERSAMPLES,
-               RSVD_N_ITER);
+  Eigen::MatrixXf right_singular_vectors;
+  if (X.rows() < X.cols()) {
+    /* RandomizedSvd expects a tall matrix. The left singular vectors of X^T are the right
+     * singular vectors of X, so transposing also handles compressed, wide model inputs safely. */
+    Eigen::MatrixXf X_transposed = X.transpose();
+    rsvd.compute(X_transposed, effective_rank, RSVD_OVERSAMPLES, RSVD_N_ITER);
+    right_singular_vectors = rsvd.matrixU();
+  } else {
+    rsvd.compute(X, effective_rank, RSVD_OVERSAMPLES, RSVD_N_ITER);
+    right_singular_vectors = rsvd.matrixV();
+  }
 
-  Eigen::MatrixXf V = Eigen::MatrixXf::Zero(X.cols(), rank);
-  const long rows = std::min(static_cast<long>(X.cols()), static_cast<long>(rsvd.matrixV().rows()));
-  const long cols = std::min(static_cast<long>(rank), static_cast<long>(rsvd.matrixV().cols()));
-  V.topLeftCorner(rows, cols) = rsvd.matrixV().topLeftCorner(rows, cols);
+  const long rows =
+      std::min(static_cast<long>(X.cols()), static_cast<long>(right_singular_vectors.rows()));
+  const long cols =
+      std::min(static_cast<long>(rank), static_cast<long>(right_singular_vectors.cols()));
+  V.topLeftCorner(rows, cols) = right_singular_vectors.topLeftCorner(rows, cols);
 
   return V;
 }

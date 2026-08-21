@@ -173,8 +173,7 @@ static PyObject *kmeans_get_centroids(KMeansIndex *self, PyObject *args) {
     npy_intp dims[2] = {n_clusters, dim};
     PyObject *ret = PyArray_SimpleNew(2, dims, NPY_FLOAT32);
     float *outdata = reinterpret_cast<float *>(PyArray_DATA((PyArrayObject *)ret));
-    const std::size_t count =
-        static_cast<std::size_t>(n_clusters) * static_cast<std::size_t>(dim);
+    const std::size_t count = static_cast<std::size_t>(n_clusters) * static_cast<std::size_t>(dim);
     std::memcpy(outdata, centroids.data(), count * sizeof(float));
 
     return ret;
@@ -255,9 +254,8 @@ static int Lorann_init(LorannIndex<T> *self, PyObject *args, PyObject *kwds) {
       self->index = std::make_unique<Lorann::Lorann<T, Lorann::SQ8Quantizer>>(
           data, n, dim, n_clusters, global_dim, rank, train_size, distance, balanced, copy);
     } else {
-      self->index = std::make_unique<Lorann::LorannFP<T>>(data, n, dim, n_clusters, global_dim,
-                                                          rank, train_size, distance, balanced,
-                                                          copy);
+      self->index = std::make_unique<Lorann::LorannFP<T>>(
+          data, n, dim, n_clusters, global_dim, rank, train_size, distance, balanced, copy);
     }
   } catch (const std::exception &e) {
     if (!copy) {
@@ -436,8 +434,7 @@ static PyObject *lorann_search(LorannIndex<T> *self, PyObject *args) {
       for (int i = 0; i < n; ++i) {
         const std::size_t input_offset =
             static_cast<std::size_t>(i) * static_cast<std::size_t>(dim);
-        const std::size_t output_offset =
-            static_cast<std::size_t>(i) * static_cast<std::size_t>(k);
+        const std::size_t output_offset = static_cast<std::size_t>(i) * static_cast<std::size_t>(k);
         self->index->search(indata + input_offset, k, clusters_to_search, points_to_rerank,
                             out_idx + output_offset, out_distances + output_offset);
       }
@@ -455,8 +452,7 @@ static PyObject *lorann_search(LorannIndex<T> *self, PyObject *args) {
       for (int i = 0; i < n; ++i) {
         const std::size_t input_offset =
             static_cast<std::size_t>(i) * static_cast<std::size_t>(dim);
-        const std::size_t output_offset =
-            static_cast<std::size_t>(i) * static_cast<std::size_t>(k);
+        const std::size_t output_offset = static_cast<std::size_t>(i) * static_cast<std::size_t>(k);
         self->index->search(indata + input_offset, k, clusters_to_search, points_to_rerank,
                             out_idx + output_offset);
       }
@@ -530,8 +526,7 @@ static PyObject *lorann_exact_search(LorannIndex<T> *self, PyObject *args) {
       for (int i = 0; i < n; ++i) {
         const std::size_t input_offset =
             static_cast<std::size_t>(i) * static_cast<std::size_t>(dim);
-        const std::size_t output_offset =
-            static_cast<std::size_t>(i) * static_cast<std::size_t>(k);
+        const std::size_t output_offset = static_cast<std::size_t>(i) * static_cast<std::size_t>(k);
         self->index->exact_search(indata + input_offset, k, out_idx + output_offset,
                                   out_distances + output_offset);
       }
@@ -549,8 +544,7 @@ static PyObject *lorann_exact_search(LorannIndex<T> *self, PyObject *args) {
       for (int i = 0; i < n; ++i) {
         const std::size_t input_offset =
             static_cast<std::size_t>(i) * static_cast<std::size_t>(dim);
-        const std::size_t output_offset =
-            static_cast<std::size_t>(i) * static_cast<std::size_t>(k);
+        const std::size_t output_offset = static_cast<std::size_t>(i) * static_cast<std::size_t>(k);
         self->index->exact_search(indata + input_offset, k, out_idx + output_offset);
       }
       Py_END_ALLOW_THREADS;

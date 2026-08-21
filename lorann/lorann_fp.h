@@ -1,13 +1,11 @@
 #pragma once
 
-#ifdef _OPENMP
-#include <omp.h>
-#endif
-
 #define EIGEN_DONT_PARALLELIZE
 
 #include <Eigen/Dense>
 #include <cstring>
+#include <optional>
+#include <utility>
 #include <vector>
 
 #include "lorann_base.h"
@@ -160,126 +158,38 @@ class LorannFP final : public LorannBase<T> {
    */
   void build(const T *query_data, const int query_n, const bool approximate = true,
              const bool verbose = false, int num_threads = -1) override {
-    LORANN_ENSURE_POSITIVE(query_n);
-
-#ifdef _OPENMP
-    if (num_threads <= 0) {
-      num_threads = omp_get_max_threads();
-    }
-#endif
-
-    MappedMatrix train_mat = detail::Traits<T>::to_float_matrix(_data.get(), _n_samples, _dim);
-    MappedMatrix query_mat = detail::Traits<T>::to_float_matrix(query_data, query_n, _dim);
-
-    int to_sample = SAMPLED_POINTS_PER_CLUSTER;
-    if (_balanced || !approximate ||
-        static_cast<std::int64_t>(to_sample) * static_cast<std::int64_t>(_n_clusters) >
-            0.5 * static_cast<double>(_n_samples)) {
-      to_sample = -1;
-    }
-
-    /* clustering */
-    KMeans global_clustering(_n_clusters, KMEANS_ITERATIONS, to_sample, _distance, _balanced,
-                             BALANCED_KMEANS_MAX_DIFF, BALANCED_KMEANS_PENALTY);
+    auto build_context = this->prepare_build(query_data, query_n, num_threads);
+    const auto &train_mat = build_context.train_mat.view;
+    const auto &query_mat = build_context.query_mat.view;
+    KMeans global_clustering = this->make_global_clustering(approximate);
 
     std::vector<std::vector<int>> cluster_train_map;
+    std::optional<typename LorannBase<T>::ProjectedBuildData> projected_data;
     if (_global_dim < _dim) {
-      RowMatrix query_sample = sample_rows(query_mat.view, GLOBAL_DIM_REDUCTION_SAMPLES);
-      _global_transform =
-          compute_principal_components(query_sample.transpose() * query_sample, _global_dim);
-      RowMatrix reduced_train_mat = train_mat.view * _global_transform;
-
-      if (query_mat.view.data() != train_mat.view.data()) {
-        RowMatrix reduced_query_mat = query_mat.view * _global_transform;
-        cluster_train_map =
-            clustering(global_clustering, reduced_train_mat.data(), reduced_train_mat.rows(),
-                       reduced_query_mat.data(), reduced_query_mat.rows(), verbose, num_threads);
-      } else {
-        cluster_train_map =
-            clustering(global_clustering, reduced_train_mat.data(), reduced_train_mat.rows(),
-                       reduced_train_mat.data(), reduced_train_mat.rows(), verbose, num_threads);
-      }
-    } else {
+      RowMatrix query_sample = sample_rows(query_mat, GLOBAL_DIM_REDUCTION_SAMPLES);
+      _global_transform = compute_principal_components_from_rows(query_sample, _global_dim);
+      projected_data.emplace(build_context, _global_transform);
       cluster_train_map =
-          clustering(global_clustering, train_mat.view.data(), train_mat.view.rows(),
-                     query_mat.view.data(), query_mat.view.rows(), verbose, num_threads);
+          this->cluster_reduced_data(global_clustering, build_context, projected_data->train_rows(),
+                                     projected_data->query_rows(), verbose);
+      projected_data->retain(
+          this->projected_data_usage(build_context, cluster_train_map, approximate));
+    } else {
+      cluster_train_map = this->cluster_build_data(global_clustering, build_context, verbose);
     }
 
-    _centroid_mat = global_clustering.get_centroids();
-
-    if (_distance == L2) {
-      _global_centroid_norms = _centroid_mat.rowwise().squaredNorm();
-      _data_norms = train_mat.view.rowwise().squaredNorm();
-      _cluster_norms.resize(_n_clusters);
-    }
+    _centroid_mat = std::move(global_clustering).get_centroids();
+    this->initialize_distance_data(train_mat, _centroid_mat);
 
     _A.resize(_n_clusters);
     _B.resize(_n_clusters);
 
-    int completed_clusters = 0;
-    auto report_progress = [&]() {
-      if (!verbose) return;
-#ifdef _OPENMP
-#pragma omp critical(lorann_fp_progress)
-#endif
-      {
-        ++completed_clusters;
-        if (completed_clusters % 100 == 0 || completed_clusters == _n_clusters) {
-          std::cout << "Cluster model build progress: " << completed_clusters << "/" << _n_clusters
-                    << std::endl;
-        }
-      }
-    };
-
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(num_threads)
-#endif
-    for (int i = 0; i < _n_clusters; ++i) {
-      if (_cluster_map[i].size() == 0) {
-        report_progress();
-        continue;
-      }
-
-      if (_distance == L2) {
-        _cluster_norms[i] = _data_norms(_cluster_map[i]);
-      }
-
-      RowMatrix pts = train_mat.view(_cluster_map[i], Eigen::placeholders::all);
-      RowMatrix Q;
-
-      if (cluster_train_map[i].size() >= _cluster_map[i].size()) {
-        Q = query_mat.view(cluster_train_map[i], Eigen::placeholders::all);
-      } else {
-        Q = pts;
-      }
-
-      /* compute reduced-rank regression solution */
-      Eigen::MatrixXf beta_hat, Y_hat;
-      if (_global_dim < _dim) {
-        if (approximate) {
-          beta_hat = (pts * _global_transform).transpose();
-          Y_hat = (Q * _global_transform) * beta_hat;
-        } else {
-          Eigen::MatrixXf X = Q * _global_transform;
-          beta_hat = X.colPivHouseholderQr().solve(Q * pts.transpose());
-          Y_hat = X * beta_hat;
-        }
-      } else {
-        beta_hat = pts.transpose();
-        Y_hat = Q * pts.transpose();
-      }
-
-      Eigen::MatrixXf V = compute_V(Y_hat, _max_rank);
-      _A[i] = beta_hat * V;
-      _B[i] = V.transpose();
-
-      report_progress();
-    }
-
-    _cluster_sizes = Eigen::VectorXi(_n_clusters);
-    for (int i = 0; i < _n_clusters; ++i) {
-      _cluster_sizes(i) = static_cast<int>(_cluster_map[i].size());
-    }
+    this->build_cluster_models(
+        build_context, cluster_train_map, projected_data ? &*projected_data : nullptr, approximate,
+        verbose, _cluster_norms, [&](const int i, RowMatrix &&A, const Eigen::MatrixXf &V) {
+          _A[i] = std::move(A);
+          _B[i] = V.transpose();
+        });
   }
 
  private:
@@ -319,7 +229,6 @@ class LorannFP final : public LorannBase<T> {
   std::vector<RowMatrix> _B;
   std::vector<Vector> _cluster_norms;
 
-  using LorannBase<T>::clustering;
   using LorannBase<T>::select_final;
 
   using LorannBase<T>::_data;

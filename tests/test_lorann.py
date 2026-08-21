@@ -76,6 +76,15 @@ class TestComputeV:
         VtV = V.T @ V
         np.testing.assert_allclose(VtV, np.eye(r), rtol=1e-5, atol=1e-5)
 
+    def test_compute_v_wide_with_padded_rank(self):
+        """Test compute_V when the requested rank exceeds the number of rows"""
+        A = np.random.rand(3, 10).astype(np.float32)
+        V = lorann.compute_V(A, 8).T
+
+        assert V.shape == (10, 8)
+        np.testing.assert_allclose(V[:, 3:], 0)
+        np.testing.assert_allclose(V[:, :3].T @ V[:, :3], np.eye(3), rtol=1e-5, atol=1e-5)
+
 
 class TestKMeans:
     """Test the KMeans clustering functionality"""
@@ -286,6 +295,89 @@ for dist in [lorann.L2, lorann.IP]:
 
 class TestLorannIndex:
     """Test LorannIndex with different data types"""
+
+    @pytest.mark.parametrize("quantization_bits", [None, 8], ids=["fp", "quantized"])
+    @pytest.mark.parametrize("approximate", [True, False], ids=["approximate", "exact"])
+    @pytest.mark.parametrize(
+        "training_query_count",
+        [None, 50, 500],
+        ids=["same_data", "sparse_queries", "dense_queries"],
+    )
+    def test_transformed_build_uses_projected_rows(
+        self, quantization_bits, approximate, training_query_count
+    ):
+        """Test cached projected rows for every transformed model-building path"""
+        rng = np.random.default_rng(123)
+        data = rng.standard_normal((400, 128), dtype=np.float32)
+        training_queries = None
+        if training_query_count is not None:
+            training_queries = rng.standard_normal(
+                (training_query_count, 128), dtype=np.float32
+            )
+
+        index = lorann.LorannIndex(
+            data=data,
+            n_clusters=8,
+            global_dim=64,
+            quantization_bits=quantization_bits,
+            rank=16,
+            train_size=2,
+        )
+        index.build(
+            approximate=approximate, training_queries=training_queries, n_threads=2
+        )
+        neighbors, distances = index.search(
+            data[:3],
+            k=10,
+            clusters_to_search=8,
+            points_to_rerank=0,
+            return_distances=True,
+        )
+
+        assert neighbors.shape == (3, 10)
+        assert np.isfinite(distances).all()
+
+    @pytest.mark.parametrize("quantization_bits", [None, 8], ids=["fp", "quantized"])
+    @pytest.mark.parametrize("approximate", [True, False], ids=["approximate", "exact"])
+    def test_transformed_same_data_after_conversion(self, quantization_bits, approximate):
+        """Test same-data detection when the input needs float conversion"""
+        rng = np.random.default_rng(321)
+        data = rng.integers(0, 256, size=(400, 128), dtype=np.uint8)
+        index = lorann.LorannIndex(
+            data=data,
+            n_clusters=8,
+            global_dim=64,
+            quantization_bits=quantization_bits,
+            rank=16,
+            train_size=2,
+            distance=lorann.L2,
+        )
+
+        index.build(approximate=approximate, n_threads=2)
+        neighbors = index.search(data[:3], k=10, clusters_to_search=8, points_to_rerank=0)
+
+        assert neighbors.shape == (3, 10)
+
+    def test_transformed_exact_build(self):
+        """Test the exact regression path with global dimensionality reduction"""
+        rng = np.random.default_rng(123)
+        data = rng.standard_normal((400, 128), dtype=np.float32)
+        index = lorann.LorannIndex(
+            data=data,
+            n_clusters=8,
+            global_dim=64,
+            quantization_bits=None,
+            rank=24,
+            train_size=2,
+        )
+
+        index.build(approximate=False, n_threads=1)
+        neighbors, distances = index.search(
+            data[0], k=10, clusters_to_search=8, points_to_rerank=0, return_distances=True
+        )
+
+        assert neighbors.shape == (10,)
+        assert np.isfinite(distances).all()
 
     @pytest.mark.parametrize(
         "dtype,expected_exception", [(np.float32, None), (np.float16, "FP16"), (np.uint8, None)]

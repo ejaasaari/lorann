@@ -35,6 +35,7 @@
 #include <algorithm>
 #include <rsvd/Constants.hpp>
 #include <rsvd/RandomizedRangeFinder.hpp>
+#include <type_traits>
 
 namespace Rsvd {
 
@@ -117,15 +118,22 @@ public:
     const Eigen::Index matrixShortSize{std::min(a.rows(), a.cols())};
     const Eigen::Index rangeApproximationDim{std::min(matrixShortSize, rank + oversamples)};
 
-    const MatrixType q{
-        (numIter == 0U)
-            ? Internal::singleShot<MatrixType, RandomEngineType>(a, rangeApproximationDim,
-                                                                 m_randomEngine)
-            : Internal::RandomizedSubspaceIterations<
-                  MatrixType, RandomEngineType, Conditioner>::compute(a, rangeApproximationDim,
-                                                                      numIter, m_randomEngine)};
+    if (numIter == 0U) {
+      const MatrixType q{Internal::singleShot<MatrixType, RandomEngineType>(
+          a, rangeApproximationDim, m_randomEngine)};
+      computeFromLeftBasis(a, q, rank);
+      return;
+    }
 
-    const auto b{q.adjoint() * a};
+    computeWithIterations(
+        a, rank, rangeApproximationDim, numIter,
+        std::integral_constant<SubspaceIterationConditioner, Conditioner>{});
+  }
+
+private:
+  void computeFromLeftBasis(const MatrixType &a, const MatrixType &q,
+                            const Eigen::Index rank) {
+    const MatrixType b{q.adjoint() * a};
     Eigen::JacobiSVD<MatrixType> svd(b, Eigen::ComputeThinU | Eigen::ComputeThinV);
 
     m_leftSingularVectors.noalias() = q * svd.matrixU().leftCols(rank);
@@ -133,7 +141,74 @@ public:
     m_rightSingularVectors = svd.matrixV().leftCols(rank);
   }
 
-private:
+  template <SubspaceIterationConditioner CurrentConditioner>
+  void computeWithIterations(
+      const MatrixType &a, const Eigen::Index rank, const Eigen::Index rangeApproximationDim,
+      const unsigned int numIter,
+      std::integral_constant<SubspaceIterationConditioner, CurrentConditioner>) {
+    const MatrixType q{
+        Internal::RandomizedSubspaceIterations<MatrixType, RandomEngineType,
+                                               CurrentConditioner>::compute(
+            a, rangeApproximationDim, numIter, m_randomEngine)};
+    computeFromLeftBasis(a, q, rank);
+  }
+
+  void computeWithIterations(
+      const MatrixType &a, const Eigen::Index rank, const Eigen::Index rangeApproximationDim,
+      const unsigned int numIter,
+      std::integral_constant<SubspaceIterationConditioner,
+                             SubspaceIterationConditioner::Lu>) {
+    MatrixType image;
+    const MatrixType rightBasis{
+        Internal::RandomizedSubspaceIterations<MatrixType, RandomEngineType,
+                                               SubspaceIterationConditioner::Lu>::computeRightBasis(
+            a, rangeApproximationDim, numIter, m_randomEngine, image)};
+    computeFromRightBasis(image, rightBasis, rank);
+  }
+
+  void computeFromRightBasis(MatrixType &image, const MatrixType &rightBasis,
+                             const Eigen::Index rank) {
+    const MatrixType firstGram{image.adjoint() * image};
+    Eigen::LLT<MatrixType> firstLlt(firstGram);
+    if (firstLlt.info() != Eigen::Success) {
+      computeFromRightBasisFallback(image, rightBasis, rank);
+      return;
+    }
+
+    const MatrixType r1{firstLlt.matrixU()};
+    const MatrixType r1Transpose{r1.transpose()};
+    auto imageTranspose{image.transpose()};
+    r1Transpose.template triangularView<Eigen::Lower>().solveInPlace(imageTranspose);
+
+    const MatrixType secondGram{image.adjoint() * image};
+    Eigen::LLT<MatrixType> secondLlt(secondGram);
+    if (secondLlt.info() != Eigen::Success) {
+      const MatrixType originalImage{image * r1};
+      computeFromRightBasisFallback(originalImage, rightBasis, rank);
+      return;
+    }
+
+    const MatrixType r2{secondLlt.matrixU()};
+    const MatrixType r2Transpose{r2.transpose()};
+    r2Transpose.template triangularView<Eigen::Lower>().solveInPlace(imageTranspose);
+
+    const MatrixType reduced{r2 * r1};
+    Eigen::JacobiSVD<MatrixType> svd(reduced, Eigen::ComputeThinU | Eigen::ComputeThinV);
+
+    m_leftSingularVectors.noalias() = image * svd.matrixU().leftCols(rank);
+    m_singularValues = svd.singularValues().head(rank);
+    m_rightSingularVectors.noalias() = rightBasis * svd.matrixV().leftCols(rank);
+  }
+
+  void computeFromRightBasisFallback(const MatrixType &image, const MatrixType &rightBasis,
+                                     const Eigen::Index rank) {
+    Eigen::JacobiSVD<MatrixType> svd(image, Eigen::ComputeThinU | Eigen::ComputeThinV);
+
+    m_leftSingularVectors = svd.matrixU().leftCols(rank);
+    m_singularValues = svd.singularValues().head(rank);
+    m_rightSingularVectors.noalias() = rightBasis * svd.matrixV().leftCols(rank);
+  }
+
   RandomEngineType &m_randomEngine;
   MatrixType m_leftSingularVectors{};
   MatrixType m_singularValues{};
