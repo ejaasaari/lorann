@@ -14,6 +14,7 @@
 #include <malloc.h>
 #endif
 
+#include "miniselect/ipnselect.h"
 #include "miniselect/pdqselect.h"
 
 #if defined(__ARM_FEATURE_SVE)
@@ -270,6 +271,8 @@ static void select_k(const int k, int *labels, const int k_base, const int *base
 
   if (sorted) {
     miniselect::pdqpartial_sort_branchless(perm.begin(), perm.begin() + k, perm.end(), comp);
+  } else if (k_base >= 32768) {
+    miniselect::ipnselect_branchless(perm.data(), perm.data() + k, perm.data() + k_base, comp);
   } else {
     miniselect::pdqselect_branchless(perm.begin(), perm.begin() + k, perm.end(), comp);
   }
