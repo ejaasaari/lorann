@@ -10,5 +10,6 @@
 #if SIMSIMD_NATIVE_F16
 #include "half.h"
 #endif
+#include "one_to_many.h"
 #include "traits.h"
 #include "uint8.h"

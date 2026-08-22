@@ -582,7 +582,11 @@ class LorannBase {
     const T *data_ptr = _data.get();
     const std::size_t width = static_cast<std::size_t>(_dim) / detail::Traits<T>::dim_divisor;
 
-    if (_distance == L2) {
+    if constexpr (std::is_same_v<T, float>) {
+      detail::compute_one_to_many(
+          q, data_ptr, width, in.data(), static_cast<std::size_t>(n),
+          _distance == L2 ? detail::OneToManyMetric::L2 : detail::OneToManyMetric::IP, dist.data());
+    } else if (_distance == L2) {
       for (int i = 0; i < n; ++i) {
         const std::size_t offset = static_cast<std::size_t>(in[i]) * width;
         dist[i] = detail::Traits<T>::squared_euclidean(q, data_ptr + offset, width);
