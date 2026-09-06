@@ -1,6 +1,7 @@
 #pragma once
 
 #include "utils.h"
+#include "joint_quantization.h"
 
 namespace Lorann {
 
@@ -740,24 +741,16 @@ struct SQ4Quantizer : SQQuantizer {
 
   inline void quantize_matrix_B_unsigned(const ColMatrix &A, uint8_t *LORANN_RESTRICT result,
                                          float *LORANN_RESTRICT factors) const {
-    const int n = A.rows() - 1;
-    const int qk = n;
-
-    for (int i = 0; i < A.cols(); ++i) {
-      const float *v = A.data() + i * (n + 1) + 1;
-      const float factor = compute_quantization_factor(v, n, 4);
-      for (int k = 0; k < qk / 2; ++k) {
-        const uint8_t a = LORANN_MIN(15, factor * v[k] + 8.5f);
-        const uint8_t b = LORANN_MIN(15, factor * v[qk / 2 + k] + 8.5f);
-
-        result[i * n / 2 + k] = a;
-        result[i * n / 2 + k] |= b << 4;
-      }
-      factors[i] = factor;
-    }
+    joint_quantization::quantize_matrix<4, true>(A, result, factors);
   }
 
   inline void quantize_matrix_A_unsigned(const ColMatrix &A, uint8_t *LORANN_RESTRICT result,
+                                         float *LORANN_RESTRICT factors) const {
+    joint_quantization::quantize_matrix<4, false>(A, result, factors);
+  }
+
+  // Centroid routing retains the original absmax quantization.
+  inline void quantize_centroids_unsigned(const ColMatrix &A, uint8_t *LORANN_RESTRICT result,
                                          float *LORANN_RESTRICT factors) const {
     constexpr int qk = 32;
     const int n = A.rows();
@@ -1474,6 +1467,11 @@ struct SQ8Quantizer : SQQuantizer {
       factors[i] =
           quantize_vector_unsigned(A.data() + i * A.rows(), A.rows(), result + i * A.rows());
     }
+  }
+
+  inline void quantize_centroids_unsigned(const ColMatrix &A, uint8_t *LORANN_RESTRICT result,
+                                         float *LORANN_RESTRICT factors) const {
+    quantize_matrix_A_unsigned(A, result, factors);
   }
 };
 

@@ -222,7 +222,7 @@ class Lorann final : public LorannBase<T> {
     /* quantize the cluster centroids */
     _centroids_quantized = ColMatrixUInt8(centroid_mat_rotated.rows(), centroid_mat_rotated.cols());
     _centroid_correction = Vector(_centroids_quantized.cols() * 2);
-    quant_query.quantize_matrix_A_unsigned(centroid_mat_rotated, _centroids_quantized.data(),
+    quant_query.quantize_centroids_unsigned(centroid_mat_rotated, _centroids_quantized.data(),
                                            _centroid_correction.data());
 
     _centroid_correction(Eigen::seqN(_n_clusters, _n_clusters)) = centroid_fix;
