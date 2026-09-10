@@ -1,7 +1,7 @@
 #pragma once
 
-#include "utils.h"
 #include "joint_quantization.h"
+#include "utils.h"
 
 namespace Lorann {
 
@@ -105,8 +105,7 @@ LORANN_ALWAYS_INLINE inline __m512i dpbusd(__m512i c, const __m512i a, const __m
                              apply_to = function)
 #else
 #pragma GCC target("arch=armv8.2-a+dotprod")
-#pragma clang attribute push(__attribute__((target("arch=armv8.2-a+dotprod"))), \
-                             apply_to = function)
+#pragma clang attribute push(__attribute__((target("arch=armv8.2-a+dotprod"))), apply_to = function)
 #endif
 #endif
 
@@ -751,7 +750,7 @@ struct SQ4Quantizer : SQQuantizer {
 
   // Centroid routing retains the original absmax quantization.
   inline void quantize_centroids_unsigned(const ColMatrix &A, uint8_t *LORANN_RESTRICT result,
-                                         float *LORANN_RESTRICT factors) const {
+                                          float *LORANN_RESTRICT factors) const {
     constexpr int qk = 32;
     const int n = A.rows();
     const int nb = n / qk;
@@ -1470,7 +1469,7 @@ struct SQ8Quantizer : SQQuantizer {
   }
 
   inline void quantize_centroids_unsigned(const ColMatrix &A, uint8_t *LORANN_RESTRICT result,
-                                         float *LORANN_RESTRICT factors) const {
+                                          float *LORANN_RESTRICT factors) const {
     quantize_matrix_A_unsigned(A, result, factors);
   }
 };
