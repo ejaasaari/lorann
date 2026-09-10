@@ -2,6 +2,7 @@
 
 #include <Eigen/Dense>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <numeric>
 #include <random>
@@ -300,8 +301,9 @@ static RowMatrix sample_rows(const Eigen::Map<const RowMatrix> &X, const int sam
     return X;
   }
 
-  std::random_device rd;
-  std::mt19937_64 generator(rd());
+  // A local seeded stream makes benchmark builds reproducible across threads.
+  const char *seed = std::getenv("LORANN_SEED");
+  std::mt19937_64 generator(seed ? std::stoull(seed) : std::random_device{}());
 
   std::vector<int> reservoir(sample_size);
   std::iota(reservoir.begin(), reservoir.end(), 0);
