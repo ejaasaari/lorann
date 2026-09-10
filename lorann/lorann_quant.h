@@ -4,6 +4,7 @@
 
 #include <Eigen/Dense>
 #include <cstring>
+#include <future>
 #include <memory>
 #include <stdexcept>
 #include <utility>
@@ -180,6 +181,15 @@ class Lorann final : public LorannBase<T> {
     const auto &train_mat = build_context.train_mat.view;
     const auto &query_mat = build_context.query_mat.view;
 
+    // Both operations are deterministic and independent. Eigen is serial here,
+    // so overlapping them uses two of the requested build threads.
+    std::future<Eigen::MatrixXf> rotation_future;
+    if (build_context.num_threads > 1 && _global_dim >= 256) {
+      rotation_future = std::async(std::launch::async, [dimension = _global_dim - 1] {
+        return generate_rotation_matrix(dimension);
+      });
+    }
+
     /* compute dimensionality reduction matrix */
     RowMatrix query_sample = sample_rows(query_mat, GLOBAL_DIM_REDUCTION_SAMPLES);
     Eigen::MatrixXf global_dim_reduction =
@@ -187,7 +197,8 @@ class Lorann final : public LorannBase<T> {
 
     /* rotate the dimensionality reduction matrix beforehand so that we do not need to rotate
      * queries at query time */
-    Eigen::MatrixXf sub_rotation = generate_rotation_matrix(_global_dim - 1);
+    Eigen::MatrixXf sub_rotation =
+        rotation_future.valid() ? rotation_future.get() : generate_rotation_matrix(_global_dim - 1);
     Eigen::MatrixXf rotation = Eigen::MatrixXf::Zero(_global_dim, _global_dim);
     rotation(0, 0) = 1;
     rotation.block(1, 1, _global_dim - 1, _global_dim - 1) = sub_rotation;
@@ -222,8 +233,8 @@ class Lorann final : public LorannBase<T> {
     /* quantize the cluster centroids */
     _centroids_quantized = ColMatrixUInt8(centroid_mat_rotated.rows(), centroid_mat_rotated.cols());
     _centroid_correction = Vector(_centroids_quantized.cols() * 2);
-    quant_query.quantize_matrix_A_unsigned(centroid_mat_rotated, _centroids_quantized.data(),
-                                           _centroid_correction.data());
+    quant_query.quantize_centroids_unsigned(centroid_mat_rotated, _centroids_quantized.data(),
+                                            _centroid_correction.data());
 
     _centroid_correction(Eigen::seqN(_n_clusters, _n_clusters)) = centroid_fix;
 
@@ -261,6 +272,10 @@ class Lorann final : public LorannBase<T> {
 
           quant_data.quantize_matrix_A_unsigned(A, A_quantized.data(), A_correction.data());
           quant_data.quantize_matrix_B_unsigned(B, B_quantized.data(), B_correction.data());
+
+          if constexpr (std::is_same_v<DataQuantizer, SQ4Quantizer>)
+            joint_quantization::refit_correction(A, B, A_quantized, B_quantized, A_correction,
+                                                 B_correction);
 
           _A[i] = std::move(A_quantized);
           _B[i] = std::move(B_quantized);
