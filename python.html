@@ -357,9 +357,8 @@ global_dim = 128 if <span class="math notranslate nohighlight">\(200 \leq d \leq
 None, 4, or 8. Defaults to 8. None turns off quantization, and setting
 quantization_bits = 4 lowers the memory consumption without affecting the query
 latency but can lead to reduced recall on some data sets.</p></li>
-<li><p><strong>rank</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></span>) – Rank (<span class="math notranslate nohighlight">\(r\)</span>) of the parameter matrices. Must be 16, 32, or 64 if quantization_bits
-is not None. Defaults to 32. Rank = 64 is mainly only useful if no exact re-ranking
-is performed in the query phase.</p></li>
+<li><p><strong>rank</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></span>) – Rank (<span class="math notranslate nohighlight">\(r\)</span>) of the parameter matrices. Must be less than the input dimensionality,
+and must be 16, 32, or 64 if quantization_bits is not None. Defaults to 32.</p></li>
 <li><p><strong>train_size</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></span>) – Number of nearby clusters (<span class="math notranslate nohighlight">\(w\)</span>) used for training the reduced-rank
 regression models. Defaults to 5, but lower values can be used if
 <span class="math notranslate nohighlight">\(m \gtrsim 500 000\)</span> to speed up the index construction.</p></li>
@@ -553,9 +552,8 @@ global_dim = 128 if <span class="math notranslate nohighlight">\(200 \leq d \leq
 None, 4, or 8. Defaults to 8. None turns off quantization, and setting
 quantization_bits = 4 lowers the memory consumption without affecting the query
 latency but can lead to reduced recall on some data sets.</p></li>
-<li><p><strong>rank</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></span>) – Rank (<span class="math notranslate nohighlight">\(r\)</span>) of the parameter matrices. Must be 16, 32, or 64 if quantization_bits
-is not None. Defaults to 32. Rank = 64 is mainly only useful if no exact re-ranking
-is performed in the query phase.</p></li>
+<li><p><strong>rank</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></span>) – Rank (<span class="math notranslate nohighlight">\(r\)</span>) of the parameter matrices. Must be less than the input dimensionality,
+and must be 16, 32, or 64 if quantization_bits is not None. Defaults to 32.</p></li>
 <li><p><strong>train_size</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></span>) – Number of nearby clusters (<span class="math notranslate nohighlight">\(w\)</span>) used for training the reduced-rank
 regression models. Defaults to 5, but lower values can be used if
 <span class="math notranslate nohighlight">\(m \gtrsim 500 000\)</span> to speed up the index construction.</p></li>
