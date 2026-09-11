@@ -403,9 +403,7 @@ static RowMatrix sample_rows(const Eigen::Map<const RowMatrix> &X, const int sam
     return X;
   }
 
-  // A local seeded stream makes benchmark builds reproducible across threads.
-  const char *seed = std::getenv("LORANN_SEED");
-  std::mt19937_64 generator(seed ? std::stoull(seed) : std::random_device{}());
+  std::mt19937_64 generator(std::random_device{}());
 
   std::vector<int> reservoir(sample_size);
   std::iota(reservoir.begin(), reservoir.end(), 0);
