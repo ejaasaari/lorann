@@ -293,6 +293,9 @@ class KMeans {
     return res;
   }
 
+  // Choose a batch size targeting 1 MiB of point-to-centroid similarities per worker,
+  // avoiding the full similarity matrix. Clamp to 128-1024 rows and round down to a
+  // multiple of 64 to balance scratch space against efficient matrix multiplication.
   int similarity_block_rows() const {
     constexpr std::size_t target_similarity_bytes = 1 << 20;
     constexpr int min_block_rows = 128;

@@ -276,9 +276,8 @@ class LorannIndex(LorannBaseIndex):
                 None, 4, or 8. Defaults to 8. None turns off quantization, and setting
                 quantization_bits = 4 lowers the memory consumption without affecting the query
                 latency but can lead to reduced recall on some data sets.
-            rank: Rank ($r$) of the parameter matrices. Must be 16, 32, or 64 if quantization_bits
-                is not None. Defaults to 32. Rank = 64 is mainly only useful if no exact re-ranking
-                is performed in the query phase.
+            rank: Rank ($r$) of the parameter matrices. Must be less than the input dimensionality,
+                and must be 16, 32, or 64 if quantization_bits is not None. Defaults to 32.
             train_size: Number of nearby clusters ($w$) used for training the reduced-rank
                 regression models. Defaults to 5, but lower values can be used if
                 $m \\gtrsim 500 000$ to speed up the index construction.
@@ -318,6 +317,8 @@ class LorannIndex(LorannBaseIndex):
                 raise ValueError("invalid dtype for data matrix")
 
         n_samples, dim = data.shape
+        if rank >= dim:
+            raise ValueError("rank must be less than the input dimensionality")
         self.index = self.index_type(
             data,
             n_samples,
@@ -363,9 +364,8 @@ class LorannBinaryIndex(LorannBaseIndex):
                 None, 4, or 8. Defaults to 8. None turns off quantization, and setting
                 quantization_bits = 4 lowers the memory consumption without affecting the query
                 latency but can lead to reduced recall on some data sets.
-            rank: Rank ($r$) of the parameter matrices. Must be 16, 32, or 64 if quantization_bits
-                is not None. Defaults to 32. Rank = 64 is mainly only useful if no exact re-ranking
-                is performed in the query phase.
+            rank: Rank ($r$) of the parameter matrices. Must be less than the input dimensionality,
+                and must be 16, 32, or 64 if quantization_bits is not None. Defaults to 32.
             train_size: Number of nearby clusters ($w$) used for training the reduced-rank
                 regression models. Defaults to 5, but lower values can be used if
                 $m \\gtrsim 500 000$ to speed up the index construction.
@@ -394,6 +394,8 @@ class LorannBinaryIndex(LorannBaseIndex):
         self.index_type = lorannlib.BinaryLorannIndex
 
         n_samples, dim = data.shape
+        if rank >= dim * 8:
+            raise ValueError("rank must be less than the input dimensionality")
         self.index = self.index_type(
             data,
             n_samples,
