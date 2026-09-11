@@ -39,8 +39,7 @@ class LorannFP final : public LorannBase<T> {
    * multiple of 64. Higher values increase recall but also increase the query latency. In general,
    * a good starting point is to set global_dim = -1 if $d < 200$, global_dim = 128 if $200 \\leq d
    * \\leq 1000$, and global_dim = 256 if $d > 1000$.
-   * @param rank Rank ($r$) of the parameter matrices. Defaults to 24. Higher ranks are mainly
-   * useful if no exact re-ranking is performed in the query phase.
+   * @param rank Rank ($r$) of the parameter matrices. Must be less than d. Defaults to 24.
    * @param train_size Number of nearby clusters ($w$) used for training the reduced-rank regression
    * models. Defaults to 5, but lower values can be used if $m \\gtrsim 500 000$ to speed up the
    * index construction.
@@ -52,7 +51,11 @@ class LorannFP final : public LorannBase<T> {
                     int train_size = 5, Distance distance = IP, bool balanced = false,
                     bool copy = false)
       : LorannBase<T>(data, m, d, n_clusters, global_dim, rank, train_size, distance, balanced,
-                      copy) {}
+                      copy) {
+    if (rank >= d) {
+      throw std::invalid_argument("rank must be less than the input dimensionality");
+    }
+  }
 
   /**
    * @brief Query the index.

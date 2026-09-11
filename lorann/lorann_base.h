@@ -39,7 +39,7 @@ class LorannBase {
         _dim(d),
         _n_clusters(n_clusters),
         _global_dim(global_dim <= 0 ? d : std::min(global_dim, d)),
-        _max_rank(std::min(rank, d)),
+        _max_rank(rank),
         _train_size(train_size),
         _distance(distance),
         _balanced(balanced),
@@ -546,7 +546,7 @@ class LorannBase {
   }
 
   void select_final(const T *orig, const float *x, const int k, const int points_to_rerank,
-                    const int s, const int *all_idxs, const float *all_distances, int *idx_out,
+                    const int s, int *all_idxs, float *all_distances, int *idx_out,
                     lorann_dist_t *dist_out) const {
     const int n_selected = std::min(std::max(k, points_to_rerank), s);
 
@@ -570,7 +570,7 @@ class LorannBase {
     }
 
     std::vector<int> final_select(n_selected);
-    select_k<float>(n_selected, final_select.data(), s, all_idxs, all_distances);
+    select_candidates(n_selected, final_select.data(), s, all_idxs, all_distances);
     reorder_exact(orig, k, final_select, idx_out, dist_out);
   }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Eigen/Dense>
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -293,6 +294,107 @@ static void select_k(const int k, int *labels, const int k_base, const int *base
       distances[i] = base_distances[perm[i]];
     }
   }
+}
+
+#if defined(__AVX512F__)
+inline void store_selected_pairs(float *scores, int *ids, __m512 values, __m512i labels,
+                                 __mmask16 mask, int count) {
+  const __mmask16 output_mask = (1u << count) - 1u;
+  // Zen 4 handles register compression plus masked stores faster than compress-store.
+  _mm512_mask_storeu_ps(scores, output_mask, _mm512_maskz_compress_ps(mask, values));
+  _mm512_mask_storeu_epi32(ids, output_mask, _mm512_maskz_compress_epi32(mask, labels));
+}
+
+// Hold both end blocks in registers so compacted stores cannot overwrite unread input.
+template <bool IncludeEqual>
+inline int partition_candidates(float *scores, int *ids, int begin, int end, float pivot) {
+  const __m512 cut = _mm512_set1_ps(pivot);
+  int read_left = begin + 16, read_right = end - 16;
+  int write_left = begin, write_right = end;
+  const __m512 first = _mm512_loadu_ps(scores + begin);
+  const __m512 last = _mm512_loadu_ps(scores + read_right);
+  const __m512i first_ids = _mm512_loadu_si512(ids + begin);
+  const __m512i last_ids = _mm512_loadu_si512(ids + read_right);
+  auto emit = [&](const __m512 values, const __m512i labels, const __mmask16 valid) {
+    const __mmask16 lower =
+        valid & _mm512_cmp_ps_mask(values, cut, IncludeEqual ? _CMP_LE_OQ : _CMP_LT_OQ);
+    const __mmask16 upper = valid & ~lower;
+    const int lower_count = _mm_popcnt_u32(lower), upper_count = _mm_popcnt_u32(upper);
+    write_right -= upper_count;
+    store_selected_pairs(scores + write_left, ids + write_left, values, labels, lower, lower_count);
+    store_selected_pairs(scores + write_right, ids + write_right, values, labels, upper,
+                         upper_count);
+    write_left += lower_count;
+  };
+  while (read_right - read_left >= 16) {
+    int position;
+    if (read_left - write_left < write_right - read_right) {
+      position = read_left;
+      read_left += 16;
+    } else {
+      read_right -= 16;
+      position = read_right;
+    }
+    emit(_mm512_loadu_ps(scores + position), _mm512_loadu_si512(ids + position), 0xffff);
+  }
+  const __mmask16 tail_mask = (1u << (read_right - read_left)) - 1u;
+  const __m512 tail = _mm512_maskz_loadu_ps(tail_mask, scores + read_left);
+  const __m512i tail_ids = _mm512_maskz_loadu_epi32(tail_mask, ids + read_left);
+  emit(first, first_ids, 0xffff);
+  emit(last, last_ids, 0xffff);
+  emit(tail, tail_ids, tail_mask);
+  return write_left;
+}
+
+// On failure, scores remain paired with their IDs so generic selection can finish the job.
+inline bool partition_best_candidates(float *scores, int *ids, int count, int k) {
+  int begin = 0, end = count;
+  for (int iteration = 0; end - begin >= 32; ++iteration) {
+    if (iteration == 24) return false;
+    float sample[17];
+    for (int i = 0; i < 17; ++i)
+      sample[i] = scores[begin + static_cast<std::int64_t>(end - begin - 1) * i / 16];
+    const int rank =
+        std::clamp(int(static_cast<std::int64_t>(k - begin) * 17 / (end - begin)), 1, 15);
+    std::nth_element(sample, sample + rank, sample + 17);
+    const float pivot = sample[rank];
+    int split = partition_candidates<false>(scores, ids, begin, end, pivot);
+    if (split == k) return true;
+    if (split == begin) {
+      split = partition_candidates<true>(scores, ids, begin, end, pivot);
+      if (split >= k) return true;
+      if (split == begin) return false;
+    }
+    if (split > k)
+      end = split;
+    else
+      begin = split;
+  }
+  for (int i = begin + 1; i < end; ++i) {
+    const float score = scores[i];
+    const int id = ids[i];
+    int j = i;
+    while (j > begin && score < scores[j - 1]) {
+      scores[j] = scores[j - 1];
+      ids[j] = ids[j - 1];
+      --j;
+    }
+    scores[j] = score;
+    ids[j] = id;
+  }
+  return true;
+}
+#endif
+
+// Select k IDs for exact reranking. Scores and IDs may be permuted together.
+inline void select_candidates(int k, int *selected, int count, int *ids, float *scores) {
+#if defined(__AVX512F__)
+  if (count >= 4096 && k > 0 && k < count && partition_best_candidates(scores, ids, count, k)) {
+    std::copy_n(ids, k, selected);
+    return;
+  }
+#endif
+  select_k<float>(k, selected, count, ids, scores);
 }
 
 /* Samples n random rows from the matrix X using reservoir sampling */
