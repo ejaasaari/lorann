@@ -93,11 +93,6 @@ class KMeans {
 
     _assignments = std::vector<int>(train_mat.rows());
     _cluster_sizes = Vector(_n_clusters);
-    Vector data_norms;
-    if (_distance == L2 && _balanced) {
-      data_norms = train_mat.rowwise().squaredNorm();
-    }
-
     _centroids = sample_rows(train_mat, _n_clusters);
     postprocess_centroids();
 
@@ -128,8 +123,8 @@ class KMeans {
       split_clusters(iter_mat);
       postprocess_centroids();
       if (verbose)
-        std::cout << "Iteration " << i + 1 << "/" << _iters << " | Objective: " << cost(iter_mat)
-                  << std::endl;
+        std::cout << "Iteration " << i + 1 << "/" << _iters
+                  << " | Objective: " << cost(iter_mat, num_threads) << std::endl;
     }
 
     // After iterations, assign clusters using the full original data
@@ -148,7 +143,7 @@ class KMeans {
 
     if (_balanced) {
       if (verbose) std::cout << "Balancing clusters..." << std::endl;
-      balance(train_mat, data_norms, verbose);
+      balance(train_mat, verbose, num_threads);
     }
 
     std::vector<std::vector<int>> res(_n_clusters);
@@ -323,14 +318,9 @@ class KMeans {
             begin + block_rows <= train_mat.rows() ? block_rows : train_mat.rows() - begin;
         RowMatrix dot_products = train_mat.middleRows(begin, rows) * _centroids.transpose();
         for (int row = 0; row < rows; ++row) {
-          float min_dist = std::numeric_limits<float>::max();
-          for (int j = 0; j < _n_clusters; ++j) {
-            const float dist = -2 * dot_products(row, j) + centroid_norms(j);
-            if (dist < min_dist) {
-              min_dist = dist;
-              _assignments[begin + row] = j;
-            }
-          }
+          Eigen::Index min_index;
+          (centroid_norms.transpose() - 2 * dot_products.row(row)).minCoeff(&min_index);
+          _assignments[begin + row] = static_cast<int>(min_index);
         }
       }
     } else {
@@ -374,7 +364,10 @@ class KMeans {
     /* normalize centroids if using spherical k-means */
     if (_distance == IP) {
       for (int j = 0; j < _n_clusters; ++j) {
-        _centroids.row(j).array() /= _centroids.row(j).norm();
+        const float norm = _centroids.row(j).norm();
+        if (norm > 0) {
+          _centroids.row(j).array() /= norm;
+        }
       }
     }
   }
@@ -420,14 +413,22 @@ class KMeans {
     }
   }
 
-  float cost(const Eigen::Map<const RowMatrix> &train_mat) {
-    float total_cost = 0;
+  double cost(const Eigen::Map<const RowMatrix> &train_mat, const int num_threads) {
+    double total_cost = 0;
 
     if (_distance == L2) {
+#ifdef _OPENMP
+#pragma omp parallel for reduction(+ : total_cost) \
+    num_threads(num_threads) if (train_mat.size() >= (1 << 20))
+#endif
       for (int i = 0; i < train_mat.rows(); ++i) {
         total_cost += (train_mat.row(i) - _centroids.row(_assignments[i])).squaredNorm();
       }
     } else {
+#ifdef _OPENMP
+#pragma omp parallel for reduction(+ : total_cost) \
+    num_threads(num_threads) if (train_mat.size() >= (1 << 20))
+#endif
       for (int i = 0; i < train_mat.rows(); ++i) {
         total_cost += train_mat.row(i).dot(_centroids.row(_assignments[i]));
       }
@@ -439,18 +440,59 @@ class KMeans {
   /**
    * Balanced k-means algorithm
    *
-   * A straightforward implementation of Algorithm 1 from the paper
+   * An optimized implementation of Algorithm 1 from the paper
    * Rieke de Maeyer, Sami Sieranoja, and Pasi Fränti. Balanced k-means
    * revisited. Applied Computing and Intelligence, 3(2):145–179, 2023.
    */
-  void balance(const Eigen::Map<const RowMatrix> &train_mat, const Vector &data_norms,
-               const bool verbose = false) {
+  void balance(const Eigen::Map<const RowMatrix> &train_mat, const bool verbose,
+               const int num_threads) {
     RowMatrix unnormalized_centroids = RowMatrix::Zero(_n_clusters, train_mat.cols());
-    Vector centroid_norms = _centroids.rowwise().squaredNorm();
+    Vector centroid_norms;
+    if (_distance == L2) {
+      centroid_norms = _centroids.rowwise().squaredNorm();
+    }
+    Vector dists(_n_clusters);
+    Vector removed_sum(train_mat.cols());
+    Vector removed_mean;
+    if (_distance == L2) removed_mean.resize(train_mat.cols());
+    std::vector<unsigned char> centroid_synced(_n_clusters);
+    // Cache scores for a short block, then refresh every centroid changed by an
+    // earlier point in the block. The point updates themselves remain sequential.
+    // Larger products amortize scoring overhead for wide vectors. Cap their
+    // size relative to k so sequential repairs remain inexpensive.
+    const int block_rows = _n_clusters < 128         ? 1
+                           : train_mat.cols() >= 512 ? std::min(256, _n_clusters / 4)
+                                                     : std::min(64, _n_clusters / 8);
+    RowMatrix block_dots;
+    std::vector<RowMatrix> score_tiles((_n_clusters + 63) / 64);
+    std::vector<int> changed_centroids;
+    changed_centroids.reserve(_n_clusters);
+    std::vector<unsigned char> changed(_n_clusters);
+    const auto mark_changed = [&](const int cluster) {
+      if (!changed[cluster]) {
+        changed[cluster] = 1;
+        changed_centroids.push_back(cluster);
+      }
+    };
 
     for (int i = 0; i < train_mat.rows(); ++i) {
       unnormalized_centroids.row(_assignments[i]) += train_mat.row(i);
     }
+
+    const auto update_centroid = [&](const int cluster, const float size) {
+      if (_distance == L2) {
+        _centroids.row(cluster) = unnormalized_centroids.row(cluster) / size;
+        centroid_norms(cluster) = _centroids.row(cluster).squaredNorm();
+      } else {
+        // Normalizing the sum directly avoids dividing by size before normalization.
+        const float norm = unnormalized_centroids.row(cluster).norm();
+        if (norm > 0) {
+          _centroids.row(cluster) = unnormalized_centroids.row(cluster) / norm;
+        } else {
+          _centroids.row(cluster).setZero();
+        }
+      }
+    };
 
     float n_min = _cluster_sizes.minCoeff();
     float n_max = _cluster_sizes.maxCoeff();
@@ -462,61 +504,114 @@ class KMeans {
     float penalty_factor = _penalty_factor;
 
     while (n_max - n_min > 0.5 + _max_balance_diff) {
-      for (int i = 0; i < train_mat.rows(); ++i) {
-        int old = _assignments[i];
-        float n_old = _cluster_sizes[old];
-        unnormalized_centroids.row(old) -= train_mat.row(i);
-
-        if (n_old > 0) {
-          _centroids.row(old) = unnormalized_centroids.row(old).array() / (n_old - 1);
-          if (_distance == L2) {
-            centroid_norms(old) = _centroids.row(old).squaredNorm();
+      for (int begin = 0; begin < train_mat.rows(); begin += block_rows) {
+        const int rows = std::min(block_rows, static_cast<int>(train_mat.rows()) - begin);
+        if (block_rows > 1) {
+          block_dots.resize(rows, _n_clusters);
+#ifdef _OPENMP
+          if (num_threads > 1 && rows >= 32 && _n_clusters >= 256) {
+            // Multiply into contiguous tiles before copying to the shared
+            // score matrix. This avoids strided GEMM writes for each worker.
+            // All scores are ready before any centroid updates begin.
+#pragma omp parallel for num_threads(num_threads) schedule(static)
+            for (int cluster = 0; cluster < _n_clusters; cluster += 64) {
+              const int count = std::min(64, _n_clusters - cluster);
+              RowMatrix &tile = score_tiles[cluster / 64];
+              tile.noalias() = train_mat.middleRows(begin, rows) *
+                               _centroids.middleRows(cluster, count).transpose();
+              block_dots.middleCols(cluster, count) = tile;
+            }
+          } else
+#endif
+          {
+            block_dots.noalias() = train_mat.middleRows(begin, rows) * _centroids.transpose();
+          }
+          changed_centroids.clear();
+          std::fill(changed.begin(), changed.end(), 0);
+        }
+        for (int offset = 0; offset < rows; ++offset) {
+          const int i = begin + offset;
+          const int old = _assignments[i];
+          const float n_old = _cluster_sizes[old];
+          // Keep the full centroid intact while scoring the point's temporary removal.
+          float removed_norm = 0;
+          float removed_dot;
+          if (n_old > 1) {
+            removed_sum = unnormalized_centroids.row(old) - train_mat.row(i);
+            if (_distance == L2) {
+              // Divide before squaring or dotting: the sum can overflow those
+              // operations even when the mean and its distances are finite.
+              removed_mean = removed_sum / (n_old - 1);
+              removed_norm = removed_mean.squaredNorm();
+              removed_dot = train_mat.row(i).dot(removed_mean);
+            } else {
+              const float norm = removed_sum.norm();
+              removed_dot = norm > 0 ? train_mat.row(i).dot(removed_sum / norm) : 0;
+            }
           } else {
-            _centroids.row(old).array() /= _centroids.row(old).norm();
+            // Keep the last centroid as a candidate when removing its only point.
+            removed_sum.setZero();
+            removed_dot = train_mat.row(i).dot(_centroids.row(old));
+            if (_distance == L2) removed_norm = centroid_norms(old);
           }
-        }
 
-        _cluster_sizes[old] -= 1;
+          _cluster_sizes[old] -= 1;
 
-        Vector dists;
-        if (_distance == L2) {
-          Vector dots = train_mat.row(i) * _centroids.transpose();
-          dists = (centroid_norms - 2 * dots).array() + data_norms(i);
-        } else {
-          dists = -train_mat.row(i) * _centroids.transpose();
-        }
-
-        Vector costs = dists + p_now * _cluster_sizes;
-        Eigen::Index minIndex;
-        costs.minCoeff(&minIndex);
-        Vector penalties_1 = dists.array() - dists(old);
-        Vector penalties_2 = _cluster_sizes[old] - _cluster_sizes.array();
-        Vector penalties = penalties_1.array() / penalties_2.array();
-        float min_p_value = std::numeric_limits<float>::max();
-
-        for (int p = 0; p < _n_clusters; ++p) {
-          if (_cluster_sizes[old] > _cluster_sizes[p] && penalties[p] < min_p_value) {
-            min_p_value = penalties[p];
+          if (block_rows > 1) {
+            dists = block_dots.row(offset);
+            for (const int cluster : changed_centroids) {
+              dists(cluster) = train_mat.row(i).dot(_centroids.row(cluster));
+            }
+          } else {
+            dists.noalias() = train_mat.row(i) * _centroids.transpose();
           }
+          if (_distance == L2) {
+            // The point norm is constant across clusters and cancels in penalties.
+            dists = centroid_norms - 2 * dists;
+          } else {
+            dists *= -1;
+          }
+
+          dists(old) = _distance == L2 ? removed_norm - 2 * removed_dot : -removed_dot;
+
+          Eigen::Index minIndex;
+          (dists + p_now * _cluster_sizes).minCoeff(&minIndex);
+          const float old_dist = dists(old);
+          const float old_size = _cluster_sizes[old];
+          // Counts are integral. Use a safe denominator for ineligible lanes
+          // so the fused SIMD reduction never divides by zero.
+          const auto size_diff = old_size - _cluster_sizes.array();
+          const float min_p_value = (size_diff > 0)
+                                        .select((dists.array() - old_dist) / size_diff.max(1.0f),
+                                                std::numeric_limits<float>::max())
+                                        .minCoeff();
+
+          if (p_now < min_p_value && min_p_value < p_next) {
+            p_next = min_p_value;
+          }
+
+          _cluster_sizes[minIndex] += 1;
+
+          if (minIndex != old) {
+            unnormalized_centroids.row(old) = removed_sum;
+            if (n_old > 1) update_centroid(old, n_old - 1);
+            unnormalized_centroids.row(minIndex) += train_mat.row(i);
+            update_centroid(static_cast<int>(minIndex), _cluster_sizes[minIndex]);
+            centroid_synced[old] = centroid_synced[minIndex] = 1;
+            if (block_rows > 1) {
+              mark_changed(old);
+              mark_changed(static_cast<int>(minIndex));
+            }
+          } else if (!centroid_synced[old]) {
+            // Final Lloyd assignments can differ from those used to form the
+            // initial centroids. Synchronize each centroid on its first visit.
+            update_centroid(old, n_old);
+            centroid_synced[old] = 1;
+            if (block_rows > 1) mark_changed(old);
+          }
+
+          _assignments[i] = minIndex;
         }
-
-        if (p_now < min_p_value && min_p_value < p_next) {
-          p_next = min_p_value;
-        }
-
-        _cluster_sizes[minIndex] += 1;
-
-        unnormalized_centroids.row(minIndex) += train_mat.row(i);
-        _centroids.row(minIndex) =
-            unnormalized_centroids.row(minIndex).array() / _cluster_sizes[minIndex];
-
-        if (_distance == L2) {
-          centroid_norms(minIndex) = _centroids.row(minIndex).squaredNorm();
-        } else {
-          _centroids.row(minIndex).array() /= _centroids.row(minIndex).norm();
-        }
-
-        _assignments[i] = minIndex;
       }
 
       n_min = _cluster_sizes.minCoeff();
@@ -528,7 +623,7 @@ class KMeans {
       ++iters;
 
       if (verbose) {
-        std::cout << "Iteration " << iters << " | Objective: " << cost(train_mat)
+        std::cout << "Iteration " << iters << " | Objective: " << cost(train_mat, num_threads)
                   << " | Max diff: " << n_max - n_min << std::endl;
       }
     }
