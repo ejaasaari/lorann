@@ -1,4 +1,11 @@
 #pragma once
+
+// Packed storage and AVX-512 VNNI scoring for the quantized second-stage model B.
+// Interleaving four-byte slices from 16 point columns lets each SIMD lane accumulate
+// one point's dot product. Supports SQ4/SQ8 with 16, 32, or 64 quantized coefficients.
+// Packing preserves the codes and leaves incomplete blocks in column order for the
+// regular query kernels. Unpacking restores column order for serialization.
+
 #include <cstddef>
 #include <cstdint>
 #include <cstring>

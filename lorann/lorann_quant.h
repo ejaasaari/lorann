@@ -272,12 +272,15 @@ class Lorann final : public LorannBase<T> {
             quant_data.quantize_matrix_A_unsigned(A, A_quantized.data(), A_correction.data());
             quant_data.quantize_matrix_B_unsigned(B, B_quantized.data(), B_correction.data());
 
+            // Refine SQ4 B codes, scales, and corrections against the original A*B product
+            // so B can compensate for quantization errors in A.
             if constexpr (std::is_same_v<DataQuantizer, SQ4Quantizer>)
               joint_quantization::refit_correction(A, B, A_quantized, B_quantized, A_correction,
                                                    B_correction);
 
             _A[i] = std::move(A_quantized);
             _B[i] = std::move(B_quantized);
+        // Interleave B's quantized columns in 16-point blocks for the AVX-512 VNNI kernels.
 #if defined(__AVX512VNNI__)
             if constexpr (std::is_same_v<DataQuantizer, SQ4Quantizer> ||
                           std::is_same_v<DataQuantizer, SQ8Quantizer>) {
@@ -376,6 +379,8 @@ class Lorann final : public LorannBase<T> {
 #if defined(__AVX512VNNI__)
     if constexpr (std::is_same_v<DataQuantizer, SQ4Quantizer> ||
                   std::is_same_v<DataQuantizer, SQ8Quantizer>) {
+      // Each cluster stores A codes, A corrections, padding, B codes, then B corrections.
+      // Corrections contain two floats per column; cluster starts and B codes are 64-byte aligned.
       std::vector<std::size_t> offsets(_n_clusters + 1, 0);
       for (int i = 0; i < _n_clusters; ++i) {
         const std::size_t bytes =
@@ -388,9 +393,12 @@ class Lorann final : public LorannBase<T> {
       if (!bytes) return;
       auto storage = make_aligned_array<uint8_t>(bytes, 4096);
 #if defined(__linux__)
+      // Request transparent huge pages to reduce TLB misses; ordinary pages work as well.
       const std::size_t advised_bytes = (bytes + 4095) / 4096 * 4096;
       madvise(storage.get(), advised_bytes, MADV_HUGEPAGE);
 #endif
+      // Transfer the model data into the shared allocation and release the separate buffers.
+      // Empty clusters keep their matrix metadata for serialization.
       for (int i = 0; i < _n_clusters; ++i) {
         const std::size_t n = static_cast<std::size_t>(_cluster_sizes[i]);
         if (!n) continue;
@@ -407,6 +415,7 @@ class Lorann final : public LorannBase<T> {
         _B_corrections[i].resize(0);
       }
 #if defined(__linux__) && defined(MADV_COLLAPSE)
+      // Try to collapse the populated pages immediately instead of waiting for the kernel scan.
       madvise(storage.get(), advised_bytes, MADV_COLLAPSE);
 #endif
       _query_models = std::move(storage);
