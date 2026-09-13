@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.abspath("../python/lorann"))
 project = "LoRANN"
 copyright = "2026, Elias Jääsaari"
 author = "Elias Jääsaari"
-release = "0.5"
+release = "1.0"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
