@@ -16,7 +16,7 @@ Approximate nearest neighbor search library implementing <a href="https://arxiv.
 ---
 
 - Header-only C++17 library with Python bindings
-- Query speed matching state-of-the-art graph methods but with tiny memory usage
+- Query speed matching state-of-the-art graph methods but with tiny memory usage and fast indexing
 - Optimized for modern high-dimensional (d > 100) embedding data sets
 - Optimized for modern CPU architectures with acceleration for AVX2, AVX-512, and ARM NEON
 - State-of-the-art query speed for GPU batch queries (experimental)
@@ -53,7 +53,7 @@ index = lorann.LorannIndex(
     data=data,
     n_clusters=256,
     global_dim=128,
-    quantization_bits=8,
+    quantization_bits=8, # or 4
     distance=lorann.L2,
 )
 
@@ -72,6 +72,9 @@ The data matrix should have type `float32`, `float16`, `uint8`, or `uint16` ([fo
 The distance should be either `lorann.L2` (for squared Euclidean distance), `lorann.IP` (for inner product), or `lorann.HAMMING` (only for binary data). For cosine distance, normalize vectors to unit norm and use `lorann.IP`.
 
 For a more detailed example, see [examples/example.py](examples/example.py).
+
+For a readable Python reference implementation of the algorithm, see
+[examples/reference_implementation.py](examples/reference_implementation.py).
 
 [Python documentation](https://eliasjaasaari.com/lorann/python.html)
 
