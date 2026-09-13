@@ -365,14 +365,14 @@ struct OneToManyKernel<Avx512OneToMany> {
                                            const std::size_t dim, const int *indices,
                                            const std::size_t count, Output *output) {
     std::size_t candidate = 0;
-    for (; count - candidate >= 8; candidate += 8) {
+    for (; count - candidate >= 16; candidate += 16) {
 #define LORANN_OTM_AVX512_ROW(i) \
   const float *const row##i = data + static_cast<std::size_t>(indices[candidate + i]) * dim;
-      LORANN_OTM_REPEAT_8(LORANN_OTM_AVX512_ROW)
+      LORANN_OTM_REPEAT_16(LORANN_OTM_AVX512_ROW)
 #undef LORANN_OTM_AVX512_ROW
 
 #define LORANN_OTM_AVX512_SUM(i) __m512 sum##i = _mm512_setzero_ps();
-      LORANN_OTM_REPEAT_8(LORANN_OTM_AVX512_SUM)
+      LORANN_OTM_REPEAT_16(LORANN_OTM_AVX512_SUM)
 #undef LORANN_OTM_AVX512_SUM
 
       std::size_t j = 0;
@@ -382,7 +382,7 @@ struct OneToManyKernel<Avx512OneToMany> {
 #define LORANN_OTM_AVX512_L2(i)                                                    \
   const __m512 diff##i = _mm512_sub_ps(query_vector, _mm512_loadu_ps(row##i + j)); \
   sum##i = multiply_add(sum##i, diff##i, diff##i);
-          LORANN_OTM_REPEAT_8(LORANN_OTM_AVX512_L2)
+          LORANN_OTM_REPEAT_16(LORANN_OTM_AVX512_L2)
 #undef LORANN_OTM_AVX512_L2
         }
       } else {
@@ -390,38 +390,35 @@ struct OneToManyKernel<Avx512OneToMany> {
           const __m512 query_vector = _mm512_loadu_ps(query + j);
 #define LORANN_OTM_AVX512_IP(i) \
   sum##i = multiply_add(sum##i, query_vector, _mm512_loadu_ps(row##i + j));
-          LORANN_OTM_REPEAT_8(LORANN_OTM_AVX512_IP)
+          LORANN_OTM_REPEAT_16(LORANN_OTM_AVX512_IP)
 #undef LORANN_OTM_AVX512_IP
         }
       }
 
-#define LORANN_OTM_AVX512_REDUCE(i) float scalar##i = _mm512_reduce_add_ps(sum##i);
-      LORANN_OTM_REPEAT_8(LORANN_OTM_AVX512_REDUCE)
-#undef LORANN_OTM_AVX512_REDUCE
-
-      if constexpr (metric == OneToManyMetric::L2) {
-        for (; j < dim; ++j) {
-          const float query_value = query[j];
-#define LORANN_OTM_AVX512_TAIL_L2(i)             \
-  const float diff##i = query_value - row##i[j]; \
-  scalar##i += diff##i * diff##i;
-          LORANN_OTM_REPEAT_8(LORANN_OTM_AVX512_TAIL_L2)
-#undef LORANN_OTM_AVX512_TAIL_L2
+      if (j < dim) {
+        const __mmask16 mask = (1u << (dim - j)) - 1u;
+        const __m512 query_vector = _mm512_maskz_loadu_ps(mask, query + j);
+        if constexpr (metric == OneToManyMetric::L2) {
+#define LORANN_OTM_AVX512_MASKED_L2(i)                                                 \
+  const __m512 diff##i =                                                               \
+      _mm512_sub_ps(query_vector, _mm512_maskz_loadu_ps(mask, row##i + j));              \
+  sum##i = multiply_add(sum##i, diff##i, diff##i);
+          LORANN_OTM_REPEAT_16(LORANN_OTM_AVX512_MASKED_L2)
+#undef LORANN_OTM_AVX512_MASKED_L2
+        } else {
+#define LORANN_OTM_AVX512_MASKED_IP(i) \
+  sum##i = multiply_add(sum##i, query_vector, _mm512_maskz_loadu_ps(mask, row##i + j));
+          LORANN_OTM_REPEAT_16(LORANN_OTM_AVX512_MASKED_IP)
+#undef LORANN_OTM_AVX512_MASKED_IP
         }
-#define LORANN_OTM_AVX512_STORE_L2(i) output[candidate + i] = static_cast<Output>(scalar##i);
-        LORANN_OTM_REPEAT_8(LORANN_OTM_AVX512_STORE_L2)
-#undef LORANN_OTM_AVX512_STORE_L2
-      } else {
-        for (; j < dim; ++j) {
-          const float query_value = query[j];
-#define LORANN_OTM_AVX512_TAIL_IP(i) scalar##i += query_value * row##i[j];
-          LORANN_OTM_REPEAT_8(LORANN_OTM_AVX512_TAIL_IP)
-#undef LORANN_OTM_AVX512_TAIL_IP
-        }
-#define LORANN_OTM_AVX512_STORE_IP(i) output[candidate + i] = static_cast<Output>(-scalar##i);
-        LORANN_OTM_REPEAT_8(LORANN_OTM_AVX512_STORE_IP)
-#undef LORANN_OTM_AVX512_STORE_IP
       }
+
+#define LORANN_OTM_AVX512_STORE(i)                                             \
+  const float scalar##i = _mm512_reduce_add_ps(sum##i);                         \
+  output[candidate + i] =                                                     \
+      static_cast<Output>(metric == OneToManyMetric::L2 ? scalar##i : -scalar##i);
+      LORANN_OTM_REPEAT_16(LORANN_OTM_AVX512_STORE)
+#undef LORANN_OTM_AVX512_STORE
     }
 
     for (; candidate < count; ++candidate) {

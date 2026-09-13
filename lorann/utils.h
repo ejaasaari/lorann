@@ -308,8 +308,9 @@ inline void store_selected_pairs(float *scores, int *ids, __m512 values, __m512i
 // Hold both end blocks in registers so compacted stores cannot overwrite unread input.
 template <bool IncludeEqual>
 inline int partition_candidates(float *scores, int *ids, int begin, int end, float pivot) {
+  constexpr int lanes = sizeof(__m512) / sizeof(float);
   const __m512 cut = _mm512_set1_ps(pivot);
-  int read_left = begin + 16, read_right = end - 16;
+  int read_left = begin + lanes, read_right = end - lanes;
   int write_left = begin, write_right = end;
   const __m512 first = _mm512_loadu_ps(scores + begin);
   const __m512 last = _mm512_loadu_ps(scores + read_right);
@@ -319,20 +320,22 @@ inline int partition_candidates(float *scores, int *ids, int begin, int end, flo
     const __mmask16 lower =
         valid & _mm512_cmp_ps_mask(values, cut, IncludeEqual ? _CMP_LE_OQ : _CMP_LT_OQ);
     const __mmask16 upper = valid & ~lower;
-    const int lower_count = _mm_popcnt_u32(lower), upper_count = _mm_popcnt_u32(upper);
+    const int lower_count = _mm_popcnt_u32(lower);
+    const int upper_count = _mm_popcnt_u32(valid) - lower_count;
     write_right -= upper_count;
     store_selected_pairs(scores + write_left, ids + write_left, values, labels, lower, lower_count);
     store_selected_pairs(scores + write_right, ids + write_right, values, labels, upper,
                          upper_count);
     write_left += lower_count;
   };
-  while (read_right - read_left >= 16) {
+  while (read_right - read_left >= lanes) {
     int position;
-    if (read_left - write_left < write_right - read_right) {
+    // Holding the end vectors keeps the two free gaps summing to 2 * lanes.
+    if (read_left - write_left < lanes) {
       position = read_left;
-      read_left += 16;
+      read_left += lanes;
     } else {
-      read_right -= 16;
+      read_right -= lanes;
       position = read_right;
     }
     emit(_mm512_loadu_ps(scores + position), _mm512_loadu_si512(ids + position), 0xffff);
@@ -389,7 +392,10 @@ inline bool partition_best_candidates(float *scores, int *ids, int count, int k)
 // Select k IDs for exact reranking. Scores and IDs may be permuted together.
 inline void select_candidates(int k, int *selected, int count, int *ids, float *scores) {
 #if defined(__AVX512F__)
-  if (count >= 4096 && k > 0 && k < count && partition_best_candidates(scores, ids, count, k)) {
+  // The SIMD partitioner holds one vector from each end in registers.
+  constexpr int partition_min_count = 2 * sizeof(__m512) / sizeof(float);
+  if (count >= partition_min_count && k > 0 && k < count &&
+      partition_best_candidates(scores, ids, count, k)) {
     std::copy_n(ids, k, selected);
     return;
   }

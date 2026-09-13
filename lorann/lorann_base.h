@@ -577,7 +577,10 @@ class LorannBase {
   void reorder_exact(const T *q, int k, const std::vector<int> &in, int *out,
                      lorann_dist_t *dist_out = nullptr) const {
     const int n = in.size();
-    DistVector dist(n);
+    // The float kernel accumulates in float; retaining that precision here
+    // avoids a widening buffer and offsets the wider kernel's register spills.
+    using ExactDistance = std::conditional_t<std::is_same_v<T, float>, float, lorann_dist_t>;
+    Eigen::Matrix<ExactDistance, Eigen::Dynamic, 1> dist(n);
 
     const T *data_ptr = _data.get();
     const std::size_t width = static_cast<std::size_t>(_dim) / detail::Traits<T>::dim_divisor;
@@ -612,7 +615,7 @@ class LorannBase {
       k = n;
     }
 
-    select_k<lorann_dist_t>(k, out, in.size(), in.data(), dist.data(), dist_out, true);
+    select_k<ExactDistance, lorann_dist_t>(k, out, in.size(), in.data(), dist.data(), dist_out, true);
     for (int i = k; i < final_k; ++i) {
       out[i] = -1;
       if (dist_out) dist_out[i] = std::numeric_limits<lorann_dist_t>::infinity();
