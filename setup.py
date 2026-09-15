@@ -83,6 +83,13 @@ def native_flags(compiler):
     if c not in flags:
         raise ValueError(f"Unknown compiler '{compiler}'")
 
+    target = os.environ.get("LORANN_TARGET_ARCH")
+    if target:
+        if a not in ("x86", "x86-64"):
+            raise ValueError("LORANN_TARGET_ARCH is only supported on x86 targets")
+        # Keep explicit targets independent of the machine running the build.
+        return [f"-march={target}"]
+
     return flags[c].get(a, defaults[c])
 
 
@@ -159,6 +166,8 @@ class BuildExt(build_ext):
             for flag in native + ["-fvisibility=hidden"]:
                 if has_flag(self.compiler, flag):
                     opts.append(flag)
+                elif flag in native and os.environ.get("LORANN_TARGET_ARCH"):
+                    raise RuntimeError(f"Compiler does not support requested target flag: {flag}")
 
             if sys.platform == "darwin":
                 opts.append("-mmacosx-version-min=11.0")

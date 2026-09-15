@@ -3,11 +3,13 @@ name: Build Test
 on:
   push:
     paths:
+      - '.github/workflows/build.yml'
       - 'setup.py'
       - 'lorann/**'
       - 'python/**'
   pull_request:
     paths:
+      - '.github/workflows/build.yml'
       - 'setup.py'
       - 'lorann/**'
       - 'python/**'
@@ -20,9 +22,19 @@ jobs:
           - os: ubuntu-24.04
             c: gcc
             cpp: g++
+            march: x86-64-v3
+          - os: ubuntu-24.04
+            c: gcc
+            cpp: g++
+            march: x86-64-v4
           - os: ubuntu-24.04
             c: clang
             cpp: clang++
+            march: x86-64-v3
+          - os: ubuntu-24.04
+            c: clang
+            cpp: clang++
+            march: x86-64-v4
           - os: macos-15
             c: /opt/homebrew/opt/llvm/bin/clang
             cpp: /opt/homebrew/opt/llvm/bin/clang++
@@ -64,5 +76,6 @@ jobs:
         CC: ${{ matrix.c }}
         CXX: ${{ matrix.cpp }}
         LDFLAGS: ${{ matrix.ldflags }}
+        LORANN_TARGET_ARCH: ${{ matrix.march }}
       run: |
         pip install -v .
