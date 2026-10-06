@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use LoRANN in your research, please cite the paper below."
+title: LoRANN
+authors:
+  - family-names: Jääsaari
+    given-names: Elias
+preferred-citation:
+  type: article
+  title: "LoRANN: Low-Rank Matrix Factorization for Approximate Nearest Neighbor Search"
+  authors:
+    - family-names: Jääsaari
+      given-names: Elias
+    - family-names: Hyvönen
+      given-names: Ville
+    - family-names: Roos
+      given-names: Teemu
+  journal: Advances in Neural Information Processing Systems
+  volume: 37
+  start: 102121
+  end: 102153
+  year: 2024
