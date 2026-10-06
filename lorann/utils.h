@@ -40,6 +40,7 @@
 
 #define RSVD_OVERSAMPLES 5
 #define RSVD_N_ITER 4
+#define APPROXIMATE_PCA_MIN_DIM 1024
 
 #define LORANN_MIN(a, b) ((a) < (b) ? (a) : (b))
 
@@ -451,15 +452,131 @@ static inline Eigen::MatrixXf compute_principal_components(const Eigen::MatrixXf
                                                            const int n_columns) {
   /* assumes X is a symmetric matrix */
   Eigen::SelfAdjointEigenSolver<Eigen::MatrixXf> es(X);
+  if (es.info() != Eigen::Success) {
+    throw std::runtime_error("PCA eigendecomposition failed to converge");
+  }
   Eigen::MatrixXf principal_components =
       es.eigenvectors()(Eigen::placeholders::all, Eigen::placeholders::lastN(n_columns));
   return principal_components.rowwise().reverse();
 }
 
-static inline Eigen::MatrixXf compute_principal_components_from_rows(const RowMatrix &X,
-                                                                     const int n_columns) {
+/* Forms the lower triangle of X^T X; the unused upper triangle is zero. */
+static inline Eigen::MatrixXf compute_gram_matrix_from_rows(const RowMatrix &X,
+                                                            const int num_threads = 1) {
   Eigen::MatrixXf gram = Eigen::MatrixXf::Zero(X.cols(), X.cols());
-  gram.selfadjointView<Eigen::Lower>().rankUpdate(X.transpose());
+  constexpr Eigen::Index block_size = 256;
+  if (X.rows() == 0 || X.cols() == 0) return gram;
+  if (num_threads <= 1 || X.cols() <= block_size || X.rows() < 64) {
+    gram.selfadjointView<Eigen::Lower>().rankUpdate(X.transpose());
+  } else {
+    const Eigen::Index blocks = (X.cols() + block_size - 1) / block_size;
+    const int threads =
+        static_cast<int>(std::min<Eigen::Index>(num_threads, blocks * (blocks + 1) / 2));
+    // Each tile has one writer. All sums over input rows stay within Eigen's serial
+    // product, so scheduling cannot change the result or require per-thread Gram matrices.
+#pragma omp parallel for schedule(dynamic) num_threads(threads)
+    for (Eigen::Index tile = 0; tile < blocks * blocks; ++tile) {
+      const Eigen::Index i = tile / blocks, j = tile % blocks;
+      if (i < j) continue;
+      const Eigen::Index row = i * block_size, col = j * block_size;
+      const Eigen::Index rows = std::min(block_size, X.cols() - row);
+      const Eigen::Index cols = std::min(block_size, X.cols() - col);
+      auto block = gram.block(row, col, rows, cols);
+      if (i == j) {
+        block.selfadjointView<Eigen::Lower>().rankUpdate(X.middleCols(col, cols).transpose());
+      } else {
+        block.noalias() = X.middleCols(row, rows).transpose() * X.middleCols(col, cols);
+      }
+    }
+  }
+  return gram;
+}
+
+// Keep Eigen's internal threading disabled; each worker owns disjoint output rows.
+template <typename Left, typename Right>
+Eigen::MatrixXf parallel_matrix_product(const Eigen::MatrixBase<Left> &a,
+                                        const Eigen::MatrixBase<Right> &b, const int num_threads) {
+  Eigen::MatrixXf result(a.rows(), b.cols());
+  const Eigen::Index threads = std::max(1, num_threads);
+  const Eigen::Index block =
+      std::max<Eigen::Index>(32, ((a.rows() + threads * 64 - 1) / (threads * 64)) * 32);
+  const Eigen::Index blocks = (a.rows() + block - 1) / block;
+  const int workers = static_cast<int>(std::min(threads, blocks));
+  if (workers <= 1) {
+    result.noalias() = a * b;
+    return result;
+  }
+#pragma omp parallel for schedule(static) num_threads(workers)
+  for (Eigen::Index i = 0; i < blocks; ++i) {
+    const Eigen::Index begin = i * block;
+    const Eigen::Index count = std::min(block, a.rows() - begin);
+    result.middleRows(begin, count).noalias() = a.middleRows(begin, count) * b;
+  }
+  return result;
+}
+
+// Randomized PCA of a positive semidefinite Gram matrix, supplied in its lower triangle.
+// Four applications of G, with QR after every application, match the tested power count.
+static inline Eigen::MatrixXf compute_approximate_principal_components(
+    Eigen::MatrixXf gram, const int n_columns, const int num_threads = 1,
+    const std::uint64_t seed = std::mt19937_64::default_seed) {
+  if (gram.rows() != gram.cols() || n_columns < 0 || n_columns > gram.cols()) {
+    throw std::invalid_argument("Invalid PCA matrix shape or component count");
+  }
+  if (n_columns == 0) return Eigen::MatrixXf(gram.cols(), 0);
+  const Eigen::Index width = std::min(gram.cols(), Eigen::Index(n_columns) + 32);
+  if (width == gram.cols()) return compute_principal_components(gram, n_columns);
+
+  // For a PSD matrix, its largest absolute entry is bounded by the largest diagonal.
+  // Rescale before QR to avoid overflow/underflow, and fill the previously unused triangle.
+  const float scale = gram.diagonal().cwiseAbs().maxCoeff();
+  if (!std::isfinite(scale) || !gram.diagonal().allFinite()) {
+    throw std::runtime_error("PCA Gram matrix contains non-finite values");
+  }
+  const float divisor = scale == 0 ? 1 : scale;
+  const int threads = std::max(1, num_threads);
+#pragma omp parallel for schedule(static) num_threads(threads)
+  for (Eigen::Index col = 0; col < gram.cols(); ++col) {
+    for (Eigen::Index row = col; row < gram.rows(); ++row) {
+      const float value = gram(row, col) / divisor;
+      gram(row, col) = value;
+      gram(col, row) = value;
+    }
+  }
+
+  std::mt19937_64 engine(seed);
+  Eigen::MatrixXf q = Rsvd::Internal::standardNormalRandom<Eigen::MatrixXf, std::mt19937_64>(
+      gram.cols(), width, engine);
+  for (int iteration = 0; iteration < 4; ++iteration) {
+    const Eigen::MatrixXf image = parallel_matrix_product(gram, q, threads);
+    Eigen::HouseholderQR<Eigen::MatrixXf> qr(image);
+    q = qr.householderQ() * Eigen::MatrixXf::Identity(gram.rows(), width);
+  }
+
+  const Eigen::MatrixXf image = parallel_matrix_product(gram, q, threads);
+  Eigen::MatrixXf reduced = parallel_matrix_product(q.transpose(), image, threads);
+  reduced = (0.5f * (reduced + reduced.transpose())).eval();
+  const Eigen::MatrixXf directions = compute_principal_components(reduced, n_columns);
+  Eigen::MatrixXf components = parallel_matrix_product(q, directions, threads);
+  for (Eigen::Index col = 0; col < components.cols(); ++col) {
+    Eigen::Index row;
+    components.col(col).cwiseAbs().maxCoeff(&row);
+    if (components(row, col) < 0) components.col(col) *= -1;
+  }
+  return components;
+}
+
+static inline Eigen::MatrixXf compute_principal_components_from_rows(
+    const RowMatrix &X, const int n_columns, const int num_threads = 1,
+    const bool approximate = false) {
+  if (n_columns < 0 || n_columns > X.cols()) {
+    throw std::invalid_argument("Invalid PCA component count");
+  }
+  if (n_columns == 0) return Eigen::MatrixXf(X.cols(), 0);
+  Eigen::MatrixXf gram = compute_gram_matrix_from_rows(X, num_threads);
+  if (approximate && X.cols() >= APPROXIMATE_PCA_MIN_DIM) {
+    return compute_approximate_principal_components(std::move(gram), n_columns, num_threads);
+  }
   return compute_principal_components(gram, n_columns);
 }
 

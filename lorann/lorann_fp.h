@@ -170,7 +170,8 @@ class LorannFP final : public LorannBase<T> {
     std::optional<typename LorannBase<T>::ProjectedBuildData> projected_data;
     if (_global_dim < _dim) {
       RowMatrix query_sample = sample_rows(query_mat, GLOBAL_DIM_REDUCTION_SAMPLES);
-      _global_transform = compute_principal_components_from_rows(query_sample, _global_dim);
+      _global_transform = compute_principal_components_from_rows(
+          query_sample, _global_dim, build_context.num_threads, approximate);
       projected_data.emplace(build_context, _global_transform);
       cluster_train_map =
           this->cluster_reduced_data(global_clustering, build_context, projected_data->train_rows(),

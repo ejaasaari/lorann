@@ -170,8 +170,7 @@ class Lorann final : public LorannBase<T> {
     const auto &train_mat = build_context.train_mat.view;
     const auto &query_mat = build_context.query_mat.view;
 
-    // Both operations are deterministic and independent. Eigen is serial here,
-    // so overlapping them uses two of the requested build threads.
+    // Rotation and PCA are independent. Overlap rotation with sampling.
     std::future<Eigen::MatrixXf> rotation_future;
     if (build_context.num_threads > 1 && _global_dim >= 256) {
       rotation_future = std::async(std::launch::async, [dimension = _global_dim - 1] {
@@ -183,7 +182,8 @@ class Lorann final : public LorannBase<T> {
     Eigen::MatrixXf global_dim_reduction;
     {
       RowMatrix query_sample = sample_rows(query_mat, GLOBAL_DIM_REDUCTION_SAMPLES);
-      global_dim_reduction = compute_principal_components_from_rows(query_sample, _global_dim);
+      global_dim_reduction = compute_principal_components_from_rows(
+          query_sample, _global_dim, build_context.num_threads, approximate);
     }
 
     /* rotate the dimensionality reduction matrix beforehand so that we do not need to rotate

@@ -56,7 +56,7 @@ template <typename MatrixType> void modifiedGramSchmidt(MatrixType &a) {
 
     // If the current column has near zero norm, it is a linear combination of previous columns
     const auto currColNorm{a.col(currCol).norm()};
-    if (currColNorm < tol * largestNormSeen) {
+    if (currColNorm == 0 || currColNorm < tol * largestNormSeen) {
       // Deflate
       a.col(currCol).setZero();
     } else {
